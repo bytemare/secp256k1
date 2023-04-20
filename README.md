@@ -7,7 +7,8 @@
   import "github.com/bytemare/secp256k1"
 ```
 
-This package implements the Secp256k1 prime-order elliptic curve group with hash-to-curve capabilities.
+This package implements the Secp256k1 prime-order elliptic curve group with hash-to-curve capabilities and [complete addition formulas](https://eprint.iacr.org/2015/1060.pdf).
+
 
 ## Documentation [![Go Reference](https://pkg.go.dev/badge/github.com/bytemare/secp256k1.svg)](https://pkg.go.dev/github.com/bytemare/secp256k1)
 
@@ -16,7 +17,6 @@ You can find the documentation and usage examples in [the package doc](https://p
 ## Versioning
 
 [SemVer](http://semver.org) is used for versioning. For the versions available, see the [tags on the repository](https://github.com/bytemare/secp256k1/tags).
-
 
 ## Contributing
 
