@@ -46,7 +46,6 @@ This is a checklist of a basic setup for your GitHub repo.
 - [] Declare GitHub Workflow tokens as read only
 - [] Tokens
   - [] Sonar
-  - [] Snyk
   - [] SCORECARD_READ_TOKEN
 
 ## Git setup

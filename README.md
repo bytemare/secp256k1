@@ -1,29 +1,21 @@
-# {{.TEMPLATE}}
-[![{{.template}}](https://github.com/bytemare/{{.template}}/actions/workflows/ci.yml/badge.svg)](https://github.com/bytemare/{{.template}}/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/bytemare/{{.template}}.svg)](https://pkg.go.dev/github.com/bytemare/{{.template}})
-[![codecov](https://codecov.io/gh/bytemare/{{.template}}/branch/main/graph/badge.svg?token=5bQfB0OctA)](https://codecov.io/gh/bytemare/{{.template}})
+# Secp256k1
+[![secp256k1](https://github.com/bytemare/secp256k1/actions/workflows/ci.yml/badge.svg)](https://github.com/bytemare/secp256k1/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/bytemare/secp256k1.svg)](https://pkg.go.dev/github.com/bytemare/secp256k1)
+[![codecov](https://codecov.io/gh/bytemare/secp256k1/branch/main/graph/badge.svg?token=5bQfB0OctA)](https://codecov.io/gh/bytemare/secp256k1)
 
 ```
-  import "github.com/bytemare/{{.template}}"
+  import "github.com/bytemare/secp256k1"
 ```
-{{Short description}}
 
-This package is continuously fuzzed on Fuzzbuzz.
+This package implements the Secp256k1 prime-order elliptic curve group with hash-to-curve capabilities.
 
-#### What is {{.template}}?
+## Documentation [![Go Reference](https://pkg.go.dev/badge/github.com/bytemare/secp256k1.svg)](https://pkg.go.dev/github.com/bytemare/secp256k1)
 
-> {{Short Philosophy about the concept we're implementing.}}
-
-#### References
-- {{If you have any, put links that can help know more.}}
-
-## Documentation [![Go Reference](https://pkg.go.dev/badge/github.com/bytemare/{{.template}}.svg)](https://pkg.go.dev/github.com/bytemare/{{.template}})
-
-You can find the documentation and usage examples in [the package doc](https://pkg.go.dev/github.com/bytemare/{{.template}}).
+You can find the documentation and usage examples in [the package doc](https://pkg.go.dev/github.com/bytemare/secp256k1).
 
 ## Versioning
 
-[SemVer](http://semver.org) is used for versioning. For the versions available, see the [tags on the repository](https://github.com/bytemare/{{.template}}/tags).
+[SemVer](http://semver.org) is used for versioning. For the versions available, see the [tags on the repository](https://github.com/bytemare/secp256k1/tags).
 
 
 ## Contributing
