@@ -21,25 +21,25 @@ const (
 )
 
 func TestGroup_Ciphersuite(t *testing.T) {
-	if secp256k1.New().Ciphersuite() != h2c {
+	if secp256k1.Ciphersuite() != h2c {
 		t.Fatal("expected equality")
 	}
 }
 
 func TestGroup_ScalarLength(t *testing.T) {
-	if secp256k1.New().ScalarLength() != scalarLength {
+	if secp256k1.ScalarLength() != scalarLength {
 		t.Fatal("expected equality")
 	}
 }
 
 func TestGroup_ElementLength(t *testing.T) {
-	if secp256k1.New().ElementLength() != elementLength {
+	if secp256k1.ElementLength() != elementLength {
 		t.Fatal("expected equality")
 	}
 }
 
 func TestGroup_Order(t *testing.T) {
-	if secp256k1.New().Order() != order {
+	if secp256k1.Order() != order {
 		t.Fatal("expected equality")
 	}
 }

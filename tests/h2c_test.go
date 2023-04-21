@@ -29,7 +29,6 @@ type h2cVectors struct {
 	Ciphersuite string      `json:"ciphersuite"`
 	Dst         string      `json:"dst"`
 	Vectors     []h2cVector `json:"vectors"`
-	group       secp256k1.Group
 }
 
 type h2cVector struct {
@@ -75,13 +74,13 @@ func (v *h2cVector) run(t *testing.T) {
 
 	switch v.Ciphersuite[len(v.Ciphersuite)-3:] {
 	case "RO_":
-		p := v.group.HashToGroup([]byte(v.Msg), []byte(v.Dst))
+		p := secp256k1.HashToGroup([]byte(v.Msg), []byte(v.Dst))
 
 		if hex.EncodeToString(p.Encode()) != expected {
 			t.Fatalf("Unexpected HashToGroup output.\n\tExpected %q\n\tgot  \t%q", expected, hex.EncodeToString(p.Encode()))
 		}
 	case "NU_":
-		p := v.group.EncodeToGroup([]byte(v.Msg), []byte(v.Dst))
+		p := secp256k1.EncodeToGroup([]byte(v.Msg), []byte(v.Dst))
 
 		if hex.EncodeToString(p.Encode()) != expected {
 			t.Fatalf("Unexpected EncodeToGroup output.\n\tExpected %q\n\tgot %q", expected, hex.EncodeToString(p.Encode()))
@@ -131,7 +130,6 @@ func TestHashToGroupVectors(t *testing.T) {
 				t.Fatal(errJSON)
 			}
 
-			v.group = secp256k1.Group{}
 			t.Run(v.Ciphersuite, v.runCiphersuite)
 
 			return nil

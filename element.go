@@ -121,6 +121,12 @@ func (e *Element) addAffine(element *Element) *Element {
 	return e
 }
 
+func (e *Element) setCoordinates(x, y, z *big.Int) {
+	e.x.Set(x)
+	e.y.Set(y)
+	e.z.Set(z)
+}
+
 // https://eprint.iacr.org/2015/1060.pdf
 func (e *Element) addProjectiveComplete(element *Element) *Element {
 	var t0, t1, t2, t3, t4, x3, y3, z3 big.Int
@@ -171,17 +177,11 @@ func (e *Element) addProjectiveComplete(element *Element) *Element {
 
 	switch {
 	case element.IsIdentity():
-		e.x.Set(&e.x)
-		e.y.Set(&e.y)
-		e.z.Set(&e.z)
+		e.setCoordinates(&e.x, &e.y, &e.z)
 	case e.IsIdentity():
-		e.x.Set(&element.x)
-		e.y.Set(&element.y)
-		e.z.Set(&element.z)
+		e.setCoordinates(&element.x, &element.y, &element.z)
 	default:
-		e.x.Set(&x3)
-		e.y.Set(&y3)
-		e.z.Set(&z3)
+		e.setCoordinates(&x3, &y3, &z3)
 	}
 
 	return e
@@ -359,7 +359,8 @@ func secp256Polynomial(y, x *big.Int) {
 	fp.Add(y, y, b)
 }
 
-func (e *Element) decode(data []byte) error {
+// Decode sets the receiver to a decoding of the input data, and returns an error on failure.
+func (e *Element) Decode(data []byte) error {
 	/*
 		- check coordinates are in the correct range
 		- check point is on the curve
@@ -401,11 +402,6 @@ func (e *Element) decode(data []byte) error {
 	e.z.Set(scOne)
 
 	return nil
-}
-
-// Decode sets the receiver to a decoding of the input data, and returns an error on failure.
-func (e *Element) Decode(data []byte) error {
-	return e.decode(data)
 }
 
 // MarshalBinary returns the compressed byte encoding of the element.
