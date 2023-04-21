@@ -57,6 +57,11 @@ func newElement() *Element {
 	return e.set(&identity)
 }
 
+// NewElement returns a new element set to the identity point.
+func NewElement() *Element {
+	return newElement()
+}
+
 // affine returns the affine (x,y) coordinates from the inner standard projective representation.
 func (e *Element) affine() (x, y *big.Int) {
 	if e.z.Sign() == 0 {
