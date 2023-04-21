@@ -42,6 +42,11 @@ func newScalar() *Scalar {
 	return &Scalar{scalar: big.Int{}}
 }
 
+// NewScalar returns a new scalar set to 0.
+func NewScalar() *Scalar {
+	return newScalar()
+}
+
 // Zero sets the scalar to 0, and returns it.
 func (s *Scalar) Zero() *Scalar {
 	s.scalar.Set(scZero)
