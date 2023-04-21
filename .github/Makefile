@@ -21,13 +21,14 @@ fmt:
 	@go mod tidy
 	@go fmt ../...
 	@golines -m 120 -t 4 -w .
-	@gofumpt -w -extra .
-	@gci write --Section Standard --Section Default --Section "Prefix($(shell go list -m))" .
+	@gofumpt -w -extra ../
+	@gci write -s Standard -s Default -s "Prefix($(shell go list -m))" ../
+	@fieldalignment -fix ../...
 
 .PHONY: license
 license:
 	@echo "Checking License headers ..."
-	@if addlicense -check -v -f licence-header.tmpl *; then echo "License headers OK"; else return 1; fi;
+	@if addlicense -check -v -skip yaml -f licence-header.tmpl ../*; then echo "License headers OK"; else return 1; fi;
 
 .PHONY: lint
 lint: license
