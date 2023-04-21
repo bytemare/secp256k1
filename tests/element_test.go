@@ -39,14 +39,14 @@ var multBase = []string{
 }
 
 func TestElement_Base(t *testing.T) {
-	base := hex.EncodeToString(secp256k1.New().Base().Encode())
+	base := hex.EncodeToString(secp256k1.Base().Encode())
 	if base != basePoint {
 		t.Fatal("expected equality")
 	}
 }
 
 func TestElement_Identity(t *testing.T) {
-	id := secp256k1.New().NewElement().Identity()
+	id := secp256k1.NewElement().Identity()
 	enc := hex.EncodeToString(id.Encode())
 
 	if !id.IsIdentity() {
@@ -62,7 +62,7 @@ func TestElement_Identity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	e := secp256k1.New().NewElement()
+	e := secp256k1.NewElement()
 	if err := e.Decode(b); err == nil || err.Error() != "invalid point encoding" {
 		t.Fatalf("expected specific error on decoding identity, got %q", err)
 	}
@@ -74,7 +74,7 @@ func decodeHexElement(t *testing.T, input string) *secp256k1.Element {
 		t.Fatal(err)
 	}
 
-	e := secp256k1.New().NewElement()
+	e := secp256k1.NewElement()
 	if err := e.Decode(b); err != nil {
 		t.Fatal(err)
 	}
@@ -83,9 +83,8 @@ func decodeHexElement(t *testing.T, input string) *secp256k1.Element {
 }
 
 func TestElement_Add(t *testing.T) {
-	group := secp256k1.New()
-	base := group.Base()
-	acc := group.Base()
+	base := secp256k1.Base()
+	acc := secp256k1.Base()
 
 	for _, mult := range multBase {
 		e := decodeHexElement(t, mult)
@@ -98,9 +97,8 @@ func TestElement_Add(t *testing.T) {
 }
 
 func TestElement_Double(t *testing.T) {
-	group := secp256k1.New()
-	acc := group.Base()
-	add := group.Base()
+	acc := secp256k1.Base()
+	add := secp256k1.Base()
 
 	for range multBase {
 		add.Add(add)
@@ -113,9 +111,8 @@ func TestElement_Double(t *testing.T) {
 }
 
 func TestElement_Mult(t *testing.T) {
-	group := secp256k1.New()
-	s := group.NewScalar()
-	base := group.Base()
+	s := secp256k1.NewScalar()
+	base := secp256k1.Base()
 
 	for i, mult := range multBase {
 		e := decodeHexElement(t, mult)

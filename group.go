@@ -17,63 +17,45 @@ const (
 	E2CSECP256K1 = "secp256k1_XMD:SHA-256_SSWU_NU_"
 )
 
-// Group represents the Secp256k1 group. It exposes a prime-order group API with hash-to-curve operations.
-type Group struct{}
-
-// New returns a new instantiation of the Secp256k1 Group.
-func New() Group {
-	return Group{}
-}
-
-// NewScalar returns a new scalar set to 0.
-func (g Group) NewScalar() *Scalar {
-	return newScalar()
-}
-
-// NewElement returns the identity element (point at infinity).
-func (g Group) NewElement() *Element {
-	return newElement()
-}
-
 // Base returns the group's base point a.k.a. canonical generator.
-func (g Group) Base() *Element {
+func Base() *Element {
 	return newElement().Base()
 }
 
 // HashToScalar returns a safe mapping of the arbitrary input to a Scalar.
 // The DST must not be empty or nil, and is recommended to be longer than 16 bytes.
-func (g Group) HashToScalar(input, dst []byte) *Scalar {
+func HashToScalar(input, dst []byte) *Scalar {
 	return hashToScalar(input, dst)
 }
 
 // HashToGroup returns a safe mapping of the arbitrary input to an Element in the Group.
 // The DST must not be empty or nil, and is recommended to be longer than 16 bytes.
-func (g Group) HashToGroup(input, dst []byte) *Element {
+func HashToGroup(input, dst []byte) *Element {
 	return hashToCurve(input, dst)
 }
 
 // EncodeToGroup returns a non-uniform mapping of the arbitrary input to an Element in the Group.
 // The DST must not be empty or nil, and is recommended to be longer than 16 bytes.
-func (g Group) EncodeToGroup(input, dst []byte) *Element {
+func EncodeToGroup(input, dst []byte) *Element {
 	return encodeToCurve(input, dst)
 }
 
 // Ciphersuite returns the hash-to-curve ciphersuite identifier.
-func (g Group) Ciphersuite() string {
+func Ciphersuite() string {
 	return H2CSECP256K1
 }
 
 // ScalarLength returns the byte size of an encoded scalar.
-func (g Group) ScalarLength() int {
+func ScalarLength() int {
 	return scalarLength
 }
 
 // ElementLength returns the byte size of an encoded element.
-func (g Group) ElementLength() int {
+func ElementLength() int {
 	return elementLength
 }
 
 // Order returns the order of the canonical group of scalars.
-func (g Group) Order() string {
+func Order() string {
 	return groupOrder
 }

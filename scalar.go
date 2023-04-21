@@ -202,7 +202,8 @@ func (s *Scalar) Encode() []byte {
 	return s.scalar.FillBytes(scalar)
 }
 
-func (s *Scalar) decode(in []byte) error {
+// Decode sets the receiver to a decoding of the input data, and returns an error on failure.
+func (s *Scalar) Decode(in []byte) error {
 	if len(in) == 0 {
 		return errParamNilScalar
 	}
@@ -220,11 +221,6 @@ func (s *Scalar) decode(in []byte) error {
 	s.scalar.Set(tmp)
 
 	return nil
-}
-
-// Decode sets the receiver to a decoding of the input data, and returns an error on failure.
-func (s *Scalar) Decode(in []byte) error {
-	return s.decode(in)
 }
 
 // MarshalBinary returns the compressed byte encoding of the scalar.
