@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	basePoint = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
-	identity  = "000000000000000000000000000000000000000000000000000000000000000000"
+	basePoint           = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+	identity            = "000000000000000000000000000000000000000000000000000000000000000000"
+	errExpectedIdentity = "expected identity"
 )
 
 var multBase = []string{
@@ -117,10 +118,6 @@ func TestElement_Vectors_Mult(t *testing.T) {
 	}
 }
 
-const (
-	errExpectedIdentity = "expected identity"
-)
-
 func testElementCopySet(t *testing.T, element, other *secp256k1.Element) {
 	// Verify they don't point to the same thing
 	if &element == &other {
@@ -204,7 +201,7 @@ func TestElement_Decode_OutOfBounds(t *testing.T) {
 	// x exceeds the order
 	encoded = [33]byte{}
 
-	x, ok := x.SetString(groupOrder, 0)
+	x, ok := x.SetString(fieldOrder, 0)
 	if !ok {
 		t.Errorf("setting int in base %d failed: %v", 0, groupOrder)
 	}
