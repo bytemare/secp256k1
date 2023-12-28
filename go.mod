@@ -2,8 +2,6 @@ module github.com/bytemare/secp256k1
 
 go 1.21
 
-toolchain go1.21.2
-
 require github.com/bytemare/hash2curve v0.2.4
 
 require (
