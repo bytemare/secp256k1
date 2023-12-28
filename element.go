@@ -23,6 +23,7 @@ var (
 
 // Element implements the Element interface for the Secp256k1 group element.
 type Element struct {
+	_       disallowEqual
 	x, y, z big.Int
 }
 
@@ -188,6 +189,10 @@ func (e *Element) addProjectiveComplete(element *Element) *Element {
 }
 
 func (e *Element) add(element *Element) *Element {
+	if element == nil {
+		return e
+	}
+
 	return e.addProjectiveComplete(element)
 }
 
@@ -252,7 +257,12 @@ func (e *Element) Negate() *Element {
 
 // Subtract subtracts the input from the receiver, and returns the receiver.
 func (e *Element) Subtract(element *Element) *Element {
+	if element == nil {
+		return e
+	}
+
 	q := element.copy().negate()
+
 	return e.add(q)
 }
 
@@ -279,6 +289,10 @@ func (e *Element) multiply(scalar *Scalar) *Element {
 
 // Multiply sets the receiver to the scalar multiplication of the receiver with the given Scalar, and returns it.
 func (e *Element) Multiply(scalar *Scalar) *Element {
+	if scalar == nil {
+		return e.Identity()
+	}
+
 	return e.multiply(scalar)
 }
 

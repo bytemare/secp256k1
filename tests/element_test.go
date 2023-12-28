@@ -6,18 +6,22 @@
 // LICENSE file in the root directory of this source tree or at
 // https://spdx.org/licenses/MIT.html
 
-package group
+package secp256k1_test
 
 import (
 	"encoding/hex"
-	"github.com/bytemare/secp256k1"
+	"errors"
+	"log"
 	"math/big"
 	"testing"
+
+	"github.com/bytemare/secp256k1"
 )
 
 const (
-	basePoint = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
-	identity  = "000000000000000000000000000000000000000000000000000000000000000000"
+	basePoint           = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+	identity            = "000000000000000000000000000000000000000000000000000000000000000000"
+	errExpectedIdentity = "expected identity"
 )
 
 var multBase = []string{
@@ -45,29 +49,6 @@ func TestElement_Base(t *testing.T) {
 	}
 }
 
-func TestElement_Identity(t *testing.T) {
-	id := secp256k1.NewElement().Identity()
-	enc := hex.EncodeToString(id.Encode())
-
-	if !id.IsIdentity() {
-		t.Fatal("expected identity")
-	}
-
-	if enc != identity {
-		t.Fatal("expected equality")
-	}
-
-	b, err := hex.DecodeString(identity)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	e := secp256k1.NewElement()
-	if err := e.Decode(b); err == nil || err.Error() != "invalid point encoding" {
-		t.Fatalf("expected specific error on decoding identity, got %q", err)
-	}
-}
-
 func decodeHexElement(t *testing.T, input string) *secp256k1.Element {
 	b, err := hex.DecodeString(input)
 	if err != nil {
@@ -82,7 +63,7 @@ func decodeHexElement(t *testing.T, input string) *secp256k1.Element {
 	return e
 }
 
-func TestElement_Add(t *testing.T) {
+func TestElement_Vectors_Add(t *testing.T) {
 	base := secp256k1.Base()
 	acc := secp256k1.Base()
 
@@ -94,9 +75,18 @@ func TestElement_Add(t *testing.T) {
 
 		acc.Add(base)
 	}
+
+	base.Add(secp256k1.NewElement())
+	if base.Equal(secp256k1.Base()) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+
+	if secp256k1.NewElement().Add(base).Equal(base) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
 }
 
-func TestElement_Double(t *testing.T) {
+func TestElement_Vectors_Double(t *testing.T) {
 	acc := secp256k1.Base()
 	add := secp256k1.Base()
 
@@ -110,7 +100,7 @@ func TestElement_Double(t *testing.T) {
 	}
 }
 
-func TestElement_Mult(t *testing.T) {
+func TestElement_Vectors_Mult(t *testing.T) {
 	s := secp256k1.NewScalar()
 	base := secp256k1.Base()
 
@@ -125,5 +115,313 @@ func TestElement_Mult(t *testing.T) {
 		}
 
 		base.Base().Multiply(s)
+	}
+}
+
+func testElementCopySet(t *testing.T, element, other *secp256k1.Element) {
+	// Verify they don't point to the same thing
+	if &element == &other {
+		t.Fatalf("Pointer to the same scalar")
+	}
+
+	// Verify whether they are equivalent
+	if element.Equal(other) != 1 {
+		t.Fatalf("Expected equality")
+	}
+
+	// Verify than operations on one don't affect the other
+	element.Add(element)
+	if element.Equal(other) == 1 {
+		t.Fatalf("Unexpected equality")
+	}
+
+	other.Double().Double()
+	if element.Equal(other) == 1 {
+		t.Fatalf("Unexpected equality")
+	}
+}
+
+func TestElementCopy(t *testing.T) {
+	base := secp256k1.Base()
+	cpy := base.Copy()
+	testElementCopySet(t, base, cpy)
+}
+
+func TestElementSet(t *testing.T) {
+	base := secp256k1.Base()
+	other := secp256k1.NewElement()
+	other.Set(base)
+	testElementCopySet(t, base, other)
+}
+
+func TestElement_EncodedLength(t *testing.T) {
+	id := secp256k1.NewElement().Identity().Encode()
+	if len(id) != elementLength {
+		t.Fatalf(
+			"Encode() of the identity element is expected to return %d bytes, but returned %d bytes",
+			elementLength,
+			len(id),
+		)
+	}
+
+	encodedID := hex.EncodeToString(id)
+	if encodedID != identity {
+		t.Fatalf(
+			"Encode() of the identity element is unexpected.\n\twant: %v\n\tgot : %v",
+			identity,
+			encodedID,
+		)
+	}
+
+	encodedElement := secp256k1.NewElement().Base().Multiply(secp256k1.NewScalar().Random()).Encode()
+	if len(encodedElement) != elementLength {
+		t.Fatalf(
+			"Encode() is expected to return %d bytes, but returned %d bytes",
+			elementLength,
+			encodedElement,
+		)
+	}
+}
+
+func TestElement_Decode_OutOfBounds(t *testing.T) {
+	expected := errors.New("invalid point encoding")
+
+	// Set x and y to zero
+	x := big.NewInt(0)
+	y := big.NewInt(0)
+
+	var encoded [33]byte
+	encoded[0] = byte(2 | y.Bit(0)&1)
+	x.FillBytes(encoded[1:])
+
+	if err := secp256k1.NewElement().Decode(encoded[:]); err == nil || err.Error() != expected.Error() {
+		t.Errorf("expected error %q, got %v", expected, err)
+	}
+
+	// x exceeds the order
+	encoded = [33]byte{}
+
+	x, ok := x.SetString(fieldOrder, 0)
+	if !ok {
+		t.Errorf("setting int in base %d failed: %v", 0, groupOrder)
+	}
+
+	x.Add(x, big.NewInt(1))
+	encoded[0] = byte(2 | y.Bit(0)&1)
+	x.FillBytes(encoded[1:])
+
+	if err := secp256k1.NewElement().Decode(encoded[:]); err == nil || err.Error() != expected.Error() {
+		t.Errorf("expected error %q, got %v", expected, err)
+	}
+}
+
+func TestElement_Equal(t *testing.T) {
+	base := secp256k1.Base()
+	base2 := secp256k1.Base()
+
+	if base.Equal(base2) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+
+	random := secp256k1.NewElement().Multiply(secp256k1.NewScalar().Random())
+	cpy := random.Copy()
+	if random.Equal(cpy) != 1 {
+		t.Fatal()
+	}
+}
+
+func TestElement_Add(t *testing.T) {
+	// Verify whether add yields the same element when given nil
+	base := secp256k1.Base()
+	cpy := base.Copy()
+	if cpy.Add(nil).Equal(base) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+
+	// Verify whether add yields the same element when given identity
+	base = secp256k1.Base()
+	cpy = base.Copy()
+	cpy.Add(secp256k1.NewElement())
+	if cpy.Equal(base) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+
+	// Verify whether add yields the same when adding to identity
+	base = secp256k1.Base()
+	identity := secp256k1.NewElement()
+	if identity.Add(base).Equal(base) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+
+	// Verify whether add yields the identity given the negative
+	base = secp256k1.Base()
+	negative := secp256k1.Base().Negate()
+	identity = secp256k1.NewElement()
+	if base.Add(negative).Equal(identity) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+
+	// Verify whether add yields the double when adding to itself
+	base = secp256k1.Base()
+	double := secp256k1.Base().Double()
+	if base.Add(base).Equal(double) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+
+	// Verify whether 3*base = base + base + base
+	three := secp256k1.NewScalar().One()
+	three.Add(three)
+	three.Add(secp256k1.NewScalar().One())
+
+	mult := secp256k1.Base().Multiply(three)
+	e := secp256k1.Base().Add(secp256k1.Base()).Add(secp256k1.Base())
+
+	if e.Equal(mult) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+}
+
+func TestElement_Negate(t *testing.T) {
+	// 0 = -0
+	id := secp256k1.NewElement().Identity()
+	negId := secp256k1.NewElement().Identity().Negate()
+
+	if id.Equal(negId) != 1 {
+		t.Fatal("expected equality when negating identity element")
+	}
+
+	// b + (-b) = 0
+	b := secp256k1.NewElement().Base()
+	negB := secp256k1.NewElement().Base().Negate()
+	b.Add(negB)
+
+	if !b.IsIdentity() {
+		t.Fatal("expected identity for b + (-b)")
+	}
+
+	// -(-b) = b
+	b = secp256k1.NewElement().Base()
+	negB = secp256k1.NewElement().Base().Negate().Negate()
+
+	if b.Equal(negB) != 1 {
+		t.Fatal("expected equality -(-b) = b")
+	}
+}
+
+func TestElement_Double(t *testing.T) {
+	// Verify whether double works like adding
+	base := secp256k1.Base()
+	double := secp256k1.Base().Add(secp256k1.Base())
+	if double.Equal(base.Double()) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+
+	two := secp256k1.NewScalar().One().Add(secp256k1.NewScalar().One())
+	mult := secp256k1.Base().Multiply(two)
+	if mult.Equal(double) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+}
+
+func TestElement_Substract(t *testing.T) {
+	base := secp256k1.Base()
+
+	// Verify whether subtracting yields the same element when given nil.
+	if base.Subtract(nil).Equal(base) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+
+	// Verify whether subtracting and then adding yields the same element.
+	base2 := base.Add(base).Subtract(base)
+	if base.Equal(base2) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+}
+
+func TestElement_Multiply(t *testing.T) {
+	scalar := secp256k1.NewScalar()
+
+	// base = base * 1
+	base := secp256k1.Base()
+	mult := secp256k1.Base().Multiply(scalar.One())
+	if base.Equal(mult) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+
+	// Random scalar mult must not yield identity
+	scalar = secp256k1.NewScalar().Random()
+	m := secp256k1.Base().Multiply(scalar)
+	if m.IsIdentity() {
+		t.Fatal("random scalar multiplication is identity")
+	}
+
+	// 2 * base = base + base
+	twoG := secp256k1.Base().Add(secp256k1.Base())
+	two := secp256k1.NewScalar().One().Add(secp256k1.NewScalar().One())
+	mult = secp256k1.Base().Multiply(two)
+
+	if mult.Equal(twoG) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+
+	// base * 0 = id
+	if !secp256k1.Base().Multiply(scalar.Zero()).IsIdentity() {
+		t.Fatal(errExpectedIdentity)
+	}
+
+	// base * nil = id
+	if !secp256k1.Base().Multiply(nil).IsIdentity() {
+		t.Fatal(errExpectedIdentity)
+	}
+}
+
+func TestElement_Identity(t *testing.T) {
+	id := secp256k1.NewElement()
+	if !id.IsIdentity() {
+		t.Fatal(errExpectedIdentity)
+	}
+
+	// Test encoding
+	if hex.EncodeToString(id.Encode()) != identity {
+		t.Fatal("expected equality")
+	}
+
+	b, err := hex.DecodeString(identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := secp256k1.NewElement()
+	if err := e.Decode(b); err == nil || err.Error() != "invalid point encoding" {
+		t.Fatalf("expected specific error on decoding identity, got %q", err)
+	}
+
+	// Test operation
+	base := secp256k1.Base()
+	if id.Equal(base.Subtract(base)) != 1 {
+		log.Printf("id : %v", id.Encode())
+		log.Printf("ba : %v", base.Encode())
+		t.Fatal(errExpectedIdentity)
+	}
+
+	sub1 := secp256k1.Base().Double().Negate().Add(secp256k1.Base().Double())
+	sub2 := secp256k1.Base().Subtract(secp256k1.Base())
+	if sub1.Equal(sub2) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+
+	if id.Equal(base.Multiply(nil)) != 1 {
+		t.Fatal(errExpectedIdentity)
+	}
+
+	if id.Equal(base.Multiply(secp256k1.NewScalar().Zero())) != 1 {
+		t.Fatal(errExpectedIdentity)
+	}
+
+	base = secp256k1.Base()
+	neg := base.Copy().Negate()
+	base.Add(neg)
+	if id.Equal(base) != 1 {
+		t.Fatal(errExpectedIdentity)
 	}
 }

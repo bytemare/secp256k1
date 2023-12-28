@@ -6,17 +6,18 @@
 // LICENSE file in the root directory of this source tree or at
 // https://spdx.org/licenses/MIT.html
 
-package group_test
+package secp256k1_test
 
 import (
 	"encoding/hex"
 	"encoding/json"
-	"github.com/bytemare/secp256k1"
 	"io"
 	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/bytemare/secp256k1"
 )
 
 const (
