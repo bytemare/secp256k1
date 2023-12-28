@@ -154,11 +154,6 @@ func (f Field) Sub(res, x, y *big.Int) *big.Int {
 	return f.Mod(res.Sub(x, y))
 }
 
-// Lsh sets res to the left shift of n bits on x modulo the field order.
-func (f Field) Lsh(res, x *big.Int, n uint) {
-	f.Mod(res.Lsh(x, n))
-}
-
 // Mul sets res to the multiplication of x and y modulo the field order.
 func (f Field) Mul(res, x, y *big.Int) {
 	f.Mod(res.Mul(x, y))
@@ -169,20 +164,6 @@ func (f Field) Square(res, x *big.Int) {
 	f.Mod(res.Mul(x, x))
 }
 
-// CondMov sets res to y if b true, and to x otherwise.
-func (f Field) CondMov(res, x, y *big.Int, b bool) {
-	if b {
-		res.Set(y)
-	} else {
-		res.Set(x)
-	}
-}
-
-// Sgn0 returns the first bit in the big-endian representation.
-func (f Field) Sgn0(x *big.Int) int {
-	return int(x.Bit(0))
-}
-
 func (f Field) sqrt3mod4(res, e *big.Int) *big.Int {
 	return f.Exponent(res, e, f.exp)
 }
@@ -190,19 +171,4 @@ func (f Field) sqrt3mod4(res, e *big.Int) *big.Int {
 // SquareRoot sets res to a square root of e mod the field's order, if such a square root exists.
 func (f Field) SquareRoot(res, e *big.Int) *big.Int {
 	return f.sqrt3mod4(res, e)
-}
-
-// SqrtRatio res result to the square root of (e/v), and indicates whether (e/v) is a square.
-func (f Field) SqrtRatio(res, zMapConstant, e, v *big.Int) bool {
-	f.Inv(res, v)
-	f.Mul(res, res, e)
-
-	square := f.IsSquare(res)
-	if !square {
-		f.Mul(res, res, zMapConstant)
-	}
-
-	f.SquareRoot(res, res)
-
-	return square
 }

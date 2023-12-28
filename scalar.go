@@ -22,14 +22,17 @@ var (
 	errParamNilScalar = errors.New("nil or empty scalar")
 
 	// errParamNegScalar reports an error when the input scalar is negative.
-	errParamNegScalar = errors.New("negative scalar")
+	// errParamNegScalar = errors.New("negative scalar").
 
 	// errParamScalarTooBig reports an error when the input scalar is too big.
 	errParamScalarTooBig = errors.New("scalar too big")
 )
 
+type disallowEqual [0]func()
+
 // Scalar implements the Scalar interface for Edwards25519 group scalars.
 type Scalar struct {
+	_      disallowEqual
 	scalar big.Int
 }
 
@@ -138,15 +141,9 @@ func (s *Scalar) Equal(scalar *Scalar) int {
 func (s *Scalar) LessOrEqual(scalar *Scalar) int {
 	ienc := s.Encode()
 	jenc := scalar.Encode()
-
-	leni := len(ienc)
-	if leni != len(jenc) {
-		panic(errParamScalarLength)
-	}
-
 	var res bool
 
-	for i := 0; i < leni; i++ {
+	for i := 0; i < len(ienc); i++ {
 		res = res || (ienc[i] > jenc[i])
 	}
 
@@ -162,15 +159,10 @@ func (s *Scalar) IsZero() bool {
 	return fn.AreEqual(&s.scalar, scZero)
 }
 
-func (s *Scalar) set(scalar *Scalar) *Scalar {
-	*s = *scalar
-	return s
-}
-
 // Set sets the receiver to the value of the argument scalar, and returns the receiver.
 func (s *Scalar) Set(scalar *Scalar) *Scalar {
 	if scalar == nil {
-		return s.set(nil)
+		return s.Zero()
 	}
 
 	s.scalar.Set(&scalar.scalar)
@@ -196,23 +188,26 @@ func (s *Scalar) Copy() *Scalar {
 
 // Encode returns the compressed byte encoding of the scalar.
 func (s *Scalar) Encode() []byte {
-	byteLen := (fn.BitLen() + 7) / 8
-	scalar := make([]byte, byteLen)
-
+	scalar := make([]byte, scalarLength) // length := (fn.BitLen() + 7) / 8 = 32
 	return s.scalar.FillBytes(scalar)
 }
 
 // Decode sets the receiver to a decoding of the input data, and returns an error on failure.
 func (s *Scalar) Decode(in []byte) error {
-	if len(in) == 0 {
+	switch len(in) {
+	case 0:
 		return errParamNilScalar
+	case scalarLength:
+		break
+	default:
+		return errParamScalarLength
 	}
 
 	// warning - SetBytes interprets the input as a non-signed integer, so this will always be false
+	// 	if tmp.Sign() < 0 {
+	//		return errParamNegScalar
+	//	}
 	tmp := new(big.Int).SetBytes(in)
-	if tmp.Sign() < 0 {
-		return errParamNegScalar
-	}
 
 	if fn.Order().Cmp(tmp) <= 0 {
 		return errParamScalarTooBig
