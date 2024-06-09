@@ -170,7 +170,7 @@ func (s *Scalar) Set(scalar *Scalar) *Scalar {
 	return s
 }
 
-// SetUInt64 sets s to i modulo the field order.
+// SetUInt64 sets s to i modulo the field order, and returns it.
 func (s *Scalar) SetUInt64(i uint64) *Scalar {
 	s.scalar.SetUint64(i)
 	fn.Mod(&s.scalar)
@@ -178,7 +178,7 @@ func (s *Scalar) SetUInt64(i uint64) *Scalar {
 	return s
 }
 
-// SetBigInt sets s to i modulo the field order.
+// SetBigInt sets s to i modulo the field order, and returns it.
 func (s *Scalar) SetBigInt(i *big.Int) *Scalar {
 	s.scalar.Set(i)
 	fn.Mod(&s.scalar)
