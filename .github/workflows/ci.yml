@@ -105,7 +105,7 @@ jobs:
         with:
           args: >
             -Dsonar.projectKey=secp256k1
-            -Dsonar.organization=github
+            -Dsonar.organization=bytemare
             -Dsonar.go.coverage.reportPaths=.github/coverage.out
             -Dsonar.sources=.
             -Dsonar.coverage.exclusions=examples_test.go,tests/**
