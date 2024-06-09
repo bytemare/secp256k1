@@ -9,7 +9,6 @@
 package secp256k1_test
 
 import (
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -281,13 +280,6 @@ func TestScalar_Multiply(t *testing.T) {
 	if !s.Multiply(nil).IsZero() {
 		t.Fatal("expected zero")
 	}
-}
-
-func intToBytes(i uint64) []byte {
-	res := make([]byte, scalarLength)
-	binary.BigEndian.PutUint64(res, i)
-
-	return res
 }
 
 func TestScalar_Pow(t *testing.T) {
