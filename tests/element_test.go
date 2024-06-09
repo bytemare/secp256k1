@@ -110,9 +110,7 @@ func TestElement_Vectors_Mult(t *testing.T) {
 			t.Fatalf("expected equality for %d", i)
 		}
 
-		if err := s.SetInt(big.NewInt(int64(i + 2))); err != nil {
-			t.Fatal(err)
-		}
+		s.SetUInt64(uint64(i + 2))
 
 		base.Base().Multiply(s)
 	}

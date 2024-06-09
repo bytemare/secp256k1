@@ -170,12 +170,20 @@ func (s *Scalar) Set(scalar *Scalar) *Scalar {
 	return s
 }
 
-// SetInt sets s to i modulo the field order, and returns an error if one occurs.
-func (s *Scalar) SetInt(i *big.Int) error {
+// SetUInt64 sets s to i modulo the field order, and returns it.
+func (s *Scalar) SetUInt64(i uint64) *Scalar {
+	s.scalar.SetUint64(i)
+	fn.Mod(&s.scalar)
+
+	return s
+}
+
+// SetBigInt sets s to i modulo the field order, and returns it.
+func (s *Scalar) SetBigInt(i *big.Int) *Scalar {
 	s.scalar.Set(i)
 	fn.Mod(&s.scalar)
 
-	return nil
+	return s
 }
 
 // Copy returns a copy of the receiver.
