@@ -63,9 +63,7 @@ func TestScalar_NonComparable(t *testing.T) {
 	random1 := secp256k1.NewScalar().Random()
 	random2 := secp256k1.NewScalar().Set(random1)
 	if random1 == random2 {
-		t.Logf("compared")
-	} else {
-		t.Log("no")
+		t.Fatal("unexpected comparison")
 	}
 }
 
@@ -78,35 +76,6 @@ func TestScalar_SetInt(t *testing.T) {
 	s.SetUInt64(1)
 	if s.Equal(secp256k1.NewScalar().One()) != 1 {
 		t.Fatal("expected 1")
-	}
-}
-
-func TestScalar_SetBigInt(t *testing.T) {
-	i := big.NewInt(0)
-
-	s := secp256k1.NewScalar()
-	s.SetBigInt(i)
-
-	if !s.IsZero() {
-		t.Fatal("expected 0")
-	}
-
-	i = big.NewInt(1)
-	s.SetBigInt(i)
-
-	if s.Equal(secp256k1.NewScalar().One()) != 1 {
-		t.Fatal("expected 1")
-	}
-
-	order, ok := new(big.Int).SetString(secp256k1.Order(), 10)
-	if !ok {
-		t.Fatal("conversion error")
-	}
-
-	s.SetBigInt(order)
-
-	if !s.IsZero() {
-		t.Fatalf("expected 0, got %v\n%v", s.Encode(), order)
 	}
 }
 

@@ -20,6 +20,8 @@ import (
 type serde interface {
 	Encode() []byte
 	Decode(data []byte) error
+	Hex() string
+	DecodeHex(h string) error
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
 }
@@ -27,10 +29,15 @@ type serde interface {
 func testEncoding(t *testing.T, thing1, thing2 serde) {
 	encoded := thing1.Encode()
 	marshalled, _ := thing1.MarshalBinary()
+	hexed := thing1.Hex()
 
 	if !bytes.Equal(encoded, marshalled) {
 		t.Fatalf("Encode() and MarshalBinary() are expected to have the same output."+
 			"\twant: %v\tgot : %v", encoded, marshalled)
+	}
+
+	if hex.EncodeToString(encoded) != hexed {
+		t.Fatalf("Failed hex encoding, want %q, got %q", hex.EncodeToString(encoded), hexed)
 	}
 
 	if err := thing2.Decode(nil); err == nil {
@@ -43,6 +50,10 @@ func testEncoding(t *testing.T, thing1, thing2 serde) {
 
 	if err := thing2.UnmarshalBinary(encoded); err != nil {
 		t.Fatalf("UnmarshalBinary() failed on a valid encoding: %v", err)
+	}
+
+	if err := thing2.DecodeHex(hexed); err != nil {
+		t.Fatalf("DecodeHex() failed on valid hex encoding: %v", err)
 	}
 }
 
