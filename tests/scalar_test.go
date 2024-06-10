@@ -167,7 +167,7 @@ func TestScalar_One(t *testing.T) {
 func TestScalar_Random(t *testing.T) {
 	r := secp256k1.NewScalar().Random()
 	if r.Equal(secp256k1.NewScalar().Zero()) == 1 {
-		t.Fatalf("random scalar is zero: %v", hex.EncodeToString(r.Encode()))
+		t.Fatalf("random scalar is zero: %v", r.Hex())
 	}
 }
 

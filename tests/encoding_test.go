@@ -26,6 +26,24 @@ type serde interface {
 	encoding.BinaryUnmarshaler
 }
 
+func testDecodingHexFails(t *testing.T, thing1, thing2 serde) {
+	// empty string
+	if err := thing2.DecodeHex(""); err == nil {
+		t.Fatal("expected error on empty string")
+	}
+
+	// malformed string
+	hexed := thing1.Hex()
+	malformed := []rune(hexed)
+	malformed[0] = []rune("_")[0]
+
+	if err := thing2.DecodeHex(string(malformed)); err == nil {
+		t.Fatal("expected error on malformed string")
+	} else {
+		t.Log(err)
+	}
+}
+
 func testEncoding(t *testing.T, thing1, thing2 serde) {
 	encoded := thing1.Encode()
 	marshalled, _ := thing1.MarshalBinary()
@@ -66,4 +84,37 @@ func TestElement_Encoding(t *testing.T) {
 	scalar := secp256k1.NewScalar().Random()
 	element := secp256k1.Base().Multiply(scalar)
 	testEncoding(t, element, secp256k1.NewElement())
+}
+
+func TestScalar_DecodeHex_Fails(t *testing.T) {
+	scalar := secp256k1.NewScalar().Random()
+	testEncoding(t, scalar, secp256k1.NewScalar())
+	testDecodingHexFails(t, scalar, secp256k1.NewScalar())
+
+	// Doesn't yield the same decoded result
+	res := secp256k1.NewScalar()
+	if err := res.DecodeHex(scalar.Hex()); err != nil {
+		t.Fatalf("unexpected error on valid encoding: %s", err)
+	}
+
+	if res.Equal(scalar) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+}
+
+func TestElement_DecodeHex_Fails(t *testing.T) {
+	scalar := secp256k1.NewScalar().Random()
+	element := secp256k1.Base().Multiply(scalar)
+	testEncoding(t, element, secp256k1.NewElement())
+	testDecodingHexFails(t, element, secp256k1.NewElement())
+
+	// Doesn't yield the same decoded result
+	res := secp256k1.NewElement()
+	if err := res.DecodeHex(element.Hex()); err != nil {
+		t.Fatalf("unexpected error on valid encoding: %s", err)
+	}
+
+	if res.Equal(element) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
 }

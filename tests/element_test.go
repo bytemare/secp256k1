@@ -50,13 +50,8 @@ func TestElement_Base(t *testing.T) {
 }
 
 func decodeHexElement(t *testing.T, input string) *secp256k1.Element {
-	b, err := hex.DecodeString(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	e := secp256k1.NewElement()
-	if err := e.Decode(b); err != nil {
+	if err := e.DecodeHex(input); err != nil {
 		t.Fatal(err)
 	}
 
@@ -380,7 +375,7 @@ func TestElement_Identity(t *testing.T) {
 	}
 
 	// Test encoding
-	if hex.EncodeToString(id.Encode()) != identity {
+	if id.Hex() != identity {
 		t.Fatal("expected equality")
 	}
 
