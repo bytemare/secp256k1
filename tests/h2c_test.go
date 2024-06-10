@@ -77,14 +77,14 @@ func (v *h2cVector) run(t *testing.T) {
 	case "RO_":
 		p := secp256k1.HashToGroup([]byte(v.Msg), []byte(v.Dst))
 
-		if hex.EncodeToString(p.Encode()) != expected {
-			t.Fatalf("Unexpected HashToGroup output.\n\tExpected %q\n\tgot  \t%q", expected, hex.EncodeToString(p.Encode()))
+		if p.Hex() != expected {
+			t.Fatalf("Unexpected HashToGroup output.\n\tExpected %q\n\tgot  \t%q", expected, p.Hex())
 		}
 	case "NU_":
 		p := secp256k1.EncodeToGroup([]byte(v.Msg), []byte(v.Dst))
 
-		if hex.EncodeToString(p.Encode()) != expected {
-			t.Fatalf("Unexpected EncodeToGroup output.\n\tExpected %q\n\tgot %q", expected, hex.EncodeToString(p.Encode()))
+		if p.Hex() != expected {
+			t.Fatalf("Unexpected EncodeToGroup output.\n\tExpected %q\n\tgot %q", expected, p.Hex())
 		}
 	default:
 		t.Fatal("ciphersuite not recognized")

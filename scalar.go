@@ -10,7 +10,9 @@ package secp256k1
 
 import (
 	"crypto/subtle"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"math/big"
 )
 
@@ -178,14 +180,6 @@ func (s *Scalar) SetUInt64(i uint64) *Scalar {
 	return s
 }
 
-// SetBigInt sets s to i modulo the field order, and returns it.
-func (s *Scalar) SetBigInt(i *big.Int) *Scalar {
-	s.scalar.Set(i)
-	fn.Mod(&s.scalar)
-
-	return s
-}
-
 // Copy returns a copy of the receiver.
 func (s *Scalar) Copy() *Scalar {
 	cpy := newScalar()
@@ -224,6 +218,21 @@ func (s *Scalar) Decode(in []byte) error {
 	s.scalar.Set(tmp)
 
 	return nil
+}
+
+// Hex returns the fixed-sized hexadecimal encoding of s.
+func (s *Scalar) Hex() string {
+	return hex.EncodeToString(s.Encode())
+}
+
+// DecodeHex sets s to the decoding of the hex encoded scalar.
+func (s *Scalar) DecodeHex(h string) error {
+	encoded, err := hex.DecodeString(h)
+	if err != nil {
+		return fmt.Errorf("%w", err)
+	}
+
+	return s.Decode(encoded)
 }
 
 // MarshalBinary returns the compressed byte encoding of the scalar.
