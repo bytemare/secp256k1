@@ -9,6 +9,8 @@
 // Package secp256k1 allows simple and abstracted operations in the Secp256k1 group.
 package secp256k1
 
+import "slices"
+
 const (
 	// H2CSECP256K1 represents the hash-to-curve string identifier for Secp256k1.
 	H2CSECP256K1 = "secp256k1_XMD:SHA-256_SSWU_RO_"
@@ -57,5 +59,5 @@ func ElementLength() int {
 
 // Order returns the order of the canonical group of scalars.
 func Order() []byte {
-	return groupOrderBytes
+	return slices.Clone(groupOrderBytes)
 }
