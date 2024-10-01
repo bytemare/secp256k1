@@ -196,7 +196,7 @@ func TestElement_Decode_OutOfBounds(t *testing.T) {
 
 	x, ok := x.SetString(fieldOrder, 0)
 	if !ok {
-		t.Errorf("setting int in base %d failed: %v", 0, groupOrder)
+		t.Errorf("setting int in base %d failed: %v", 0, fieldOrder)
 	}
 
 	x.Add(x, big.NewInt(1))

@@ -64,6 +64,12 @@ func (s *Scalar) One() *Scalar {
 	return s
 }
 
+// MinusOne sets the scalar to order-1, and returns it.
+func (s *Scalar) MinusOne() *Scalar {
+	s.scalar.SetBytes(scMinusOne)
+	return s
+}
+
 // Random sets the current scalar to a new random scalar and returns it.
 // The random source is crypto/rand, and this functions is guaranteed to return a non-zero scalar.
 func (s *Scalar) Random() *Scalar {
@@ -145,7 +151,7 @@ func (s *Scalar) LessOrEqual(scalar *Scalar) int {
 	jenc := scalar.Encode()
 	var res bool
 
-	for i := 0; i < len(ienc); i++ {
+	for i := range ienc {
 		res = res || (ienc[i] > jenc[i])
 	}
 
