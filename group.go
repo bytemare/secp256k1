@@ -56,6 +56,6 @@ func ElementLength() int {
 }
 
 // Order returns the order of the canonical group of scalars.
-func Order() string {
-	return groupOrder
+func Order() []byte {
+	return groupOrderBytes
 }

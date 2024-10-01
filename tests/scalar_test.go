@@ -9,6 +9,7 @@
 package secp256k1_test
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -109,27 +110,20 @@ func TestScalar_Decode_OutOfBounds(t *testing.T) {
 	}
 
 	// Decode the order
-	encoded = make([]byte, scalarLength)
-
-	order, ok := new(big.Int).SetString(groupOrder, 0)
-	if !ok {
-		t.Errorf("setting int in base %d failed: %v", 0, groupOrder)
-	}
-
-	order.FillBytes(encoded)
+	order := secp256k1.Order()
 
 	expected = errors.New("scalar too big")
-	if err := secp256k1.NewScalar().Decode(encoded); err == nil || err.Error() != expected.Error() {
+	if err := secp256k1.NewScalar().Decode(order); err == nil || err.Error() != expected.Error() {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 
 	// Decode a scalar higher than order
-	encoded = make([]byte, 32)
-	order.Add(order, big.NewInt(1))
-	order.FillBytes(encoded)
+	encoded = make([]byte, scalarLength)
+	order1 := new(big.Int).SetBytes(order)
+	order1.Add(order1, big.NewInt(1)).FillBytes(encoded)
 
 	expected = errors.New("scalar too big")
-	if err := secp256k1.NewScalar().Decode(encoded); err == nil || err.Error() != expected.Error() {
+	if err := secp256k1.NewScalar().Decode(order1.Bytes()); err == nil || err.Error() != expected.Error() {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 }
@@ -160,6 +154,14 @@ func TestScalar_One(t *testing.T) {
 	one := secp256k1.NewScalar().One()
 	m := one.Copy()
 	if one.Equal(m.Multiply(m)) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+}
+
+func TestScalar_MinusOne(t *testing.T) {
+	order := new(big.Int).SetBytes(secp256k1.Order())
+	order.Sub(order, big.NewInt(1))
+	if !bytes.Equal(order.Bytes(), secp256k1.NewScalar().MinusOne().Encode()) {
 		t.Fatal(errExpectedEquality)
 	}
 }
@@ -306,16 +308,13 @@ func TestScalar_Pow(t *testing.T) {
 	// 3**255 = 11F1B08E87EC42C5D83C3218FC83C41DCFD9F4428F4F92AF1AAA80AA46162B1F71E981273601F4AD1DD4709B5ACA650265A6AB
 	iBase := big.NewInt(3)
 	iExp := big.NewInt(255)
-	order, ok := new(big.Int).SetString(secp256k1.Order(), 0)
-	if !ok {
-		t.Fatal(ok)
-	}
+	order := new(big.Int).SetBytes(secp256k1.Order())
 	iResult := new(big.Int).Exp(iBase, iExp, order)
 	b := make([]byte, scalarLength)
 	iResult.FillBytes(b)
 
 	result = secp256k1.NewScalar()
-	//result.SetBigInt(iResult)
+	// result.SetBigInt(iResult)
 	if err := result.Decode(b); err != nil {
 		t.Fatal(err)
 	}
