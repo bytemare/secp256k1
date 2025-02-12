@@ -30,7 +30,7 @@ jobs:
 
       # Linting
       - name: Linting
-        uses: golangci/golangci-lint-action@7ec71f69b140deafe2ba0c477db8aacd59cdfe55
+        uses: golangci/golangci-lint-action@051d91933864810ecd5e2ea2cfd98f6a5bca5347
         with:
           version: latest
           args: --config=./.github/.golangci.yml ./...
@@ -90,7 +90,7 @@ jobs:
 
       # Codecov
       - name: Codecov
-        uses: codecov/codecov-action@5a605bd92782ce0810fa3b8acc235c921b497052
+        uses: codecov/codecov-action@4898080f15c09ae860fcec6796854d10a2e23de8
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
@@ -98,7 +98,7 @@ jobs:
 
       # Sonar
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@02ef91109b2d589e757aefcfb2854c2783fd7b19
+        uses: SonarSource/sonarcloud-github-action@f1700773ebdb6efe6b3f8a5cf66150027dda8f5e
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
