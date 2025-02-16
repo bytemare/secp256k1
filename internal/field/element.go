@@ -141,11 +141,6 @@ func (e *Element) IsZero() uint64 {
 	return IsZero(nonZero)
 }
 
-// IsOne returns 1 if e == 1, and 0 otherwise.
-func (e *Element) IsOne() uint64 {
-	return e.Equals(One)
-}
-
 // Set sets e to u.
 func (e *Element) Set(u *Element) *Element {
 	copy(e.E[:], u.E[:])

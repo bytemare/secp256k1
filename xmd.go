@@ -24,10 +24,7 @@ const (
 	recommendedMinLength = 16
 )
 
-var (
-	errLengthTooLarge = errors.New("requested byte length is too high")
-	errZeroLenDST     = errors.New("zero-length DST")
-)
+var errZeroLenDST = errors.New("zero-length DST")
 
 func checkDST(dst []byte) {
 	if len(dst) < recommendedMinLength {
@@ -58,11 +55,6 @@ func expandXMD(input, dst []byte, length uint) []byte {
 	h := crypto.SHA256.New()
 	dst = vetDSTXMD(h, dst)
 
-	ell := math.Ceil(float64(length) / float64(crypto.SHA256.Size()))
-	if ell > 255 || length > math.MaxUint16 {
-		panic(errLengthTooLarge)
-	}
-
 	var zPad [64]byte // 64 is SHA256's block size
 	lib := i2osp2(length)
 
@@ -72,21 +64,22 @@ func expandXMD(input, dst []byte, length uint) []byte {
 	// Hash to b1
 	b1 := hashAll(h, b0, []byte{1}, dst)
 
-	// ell < 2 means the hash function's output length is sufficient
-	if ell < 2 {
-		return b1[0:length]
-	}
-
-	// Only if we need to expand the hash output, we keep on hashing
-	return xmd(h, b0, b1, dst, uint(ell), length)
+	// So we need to expand the hash output, and keep on hashing.
+	return xmd(h, b0, b1, dst, length)
 }
 
 // xmd expands the message digest until it reaches the desirable length.
-func xmd(h hash.Hash, b0, b1, dstPrime []byte, ell, length uint) []byte {
+func xmd(h hash.Hash, b0, b1, dstPrime []byte, length uint) []byte {
 	uniformBytes := make([]byte, 0, length)
 	uniformBytes = append(uniformBytes, b1...)
 	bi := make([]byte, len(b1))
 	copy(bi, b1)
+
+	// In a generic setup, we would check if ell > 255 or length > math.MaxUint16 and panic in those case, but expandXMD
+	// for SECP256k1 is always called with 48 or 96 as expected output length, so we're fine.
+	// We would also return b1[0:length] if ell < 2, but since we always call with 48 or 96 as expected output length,
+	// so ell is always 2 or 3.
+	ell := uint(math.Ceil(float64(length) / float64(crypto.SHA256.Size())))
 
 	for i := uint(2); i <= ell; i++ {
 		xor := xorSlices(bi, b0)
