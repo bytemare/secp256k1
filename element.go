@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// Copyright (C) 2023 Daniel Bourdrez. All Rights Reserved.
+// Copyright (C) 2025 Daniel Bourdrez. All Rights Reserved.
 //
 // This source code is licensed under the MIT license found in theg
 // LICENSE file in the root directory of this source tree or at
@@ -9,52 +9,66 @@
 package secp256k1
 
 import (
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/big"
+
+	"github.com/bytemare/secp256k1/internal/field"
+)
+
+const (
+	encodingPrefixIdentity     = 0x00
+	encodingPrefixEven         = 0x02
+	encodingPrefixOdd          = 0x03
+	encodingPrefixUncompressed = 0x04
 )
 
 var (
 	// errParamInvalidPointEncoding indicates an invalid point encoding has been provided.
 	errParamInvalidPointEncoding = errors.New("invalid point encoding")
 
-	// errIdentity indicates that the identity point (or point at infinity) has been encountered.
-	errIdentity = errors.New("infinity/identity point")
+	// b is 7 in Montgomery form.
+	b = field.Element{E: field.MontgomeryDomainFieldElement{30064777911, 0, 0, 0}}
+
+	// 0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798.
+	baseX = field.MontgomeryDomainFieldElement{
+		15507633332195041431,
+		2530505477788034779,
+		10925531211367256732,
+		11061375339145502536,
+	}
+
+	// 0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8.
+	baseY = field.MontgomeryDomainFieldElement{
+		12780836216951778274,
+		10231155108014310989,
+		8121878653926228278,
+		14933801261141951190,
+	}
+
+	// b3 is 3*b, i.e. 21, in the Montgomery form.
+	b3 = field.Element{E: field.MontgomeryDomainFieldElement{90194333733, 0, 0, 0}}
 )
 
-// Element implements the Element interface for the Secp256k1 group element.
+// Element implements the Element interface for the secp256k1 group element.
 type Element struct {
 	_       disallowEqual
-	x, y, z big.Int
+	x, y, z field.Element
 }
 
 var identity = Element{
-	x: *fp.Zero(),
-	y: *fp.Zero(),
-	z: *fp.Zero(), // The Identity element is the only with z == 0
-}
-
-func newElementWithAffine(x, y *big.Int) *Element {
-	e := &Element{
-		x: big.Int{},
-		y: big.Int{},
-		z: big.Int{},
-	}
-
-	e.x.Set(x)
-	e.y.Set(y)
-	e.z.Set(scOne)
-
-	return e
+	x: *field.New(),
+	y: *field.New().One(),
+	z: *field.New(), // The Identity element is the only with z == 0
 }
 
 // newElement returns a new element set to the point at infinity.
 func newElement() *Element {
 	e := &Element{
-		x: big.Int{},
-		y: big.Int{},
-		z: big.Int{},
+		x: field.Element{},
+		y: field.Element{},
+		z: field.Element{},
 	}
 
 	return e.set(&identity)
@@ -66,30 +80,27 @@ func NewElement() *Element {
 }
 
 // affine returns the affine (x,y) coordinates from the inner standard projective representation.
-func (e *Element) affine() (x, y *big.Int) {
-	if e.z.Sign() == 0 {
-		return fp.Zero(), fp.Zero()
+func (e *Element) affine() (*field.Element, *field.Element) {
+	if e.z.IsZero() != 0 {
+		return field.New(), field.New()
 	}
 
-	if fp.AreEqual(&e.z, scOne) {
+	if e.z.IsOne() != 0 {
 		return &e.x, &e.y
 	}
 
-	var zInv big.Int
-	x, y = new(big.Int), new(big.Int)
-
-	fp.Inv(&zInv, &e.z)
-	fp.Mul(x, &e.x, &zInv)
-	fp.Mul(y, &e.y, &zInv)
+	zInv := field.New().Invert(e.z)
+	x := field.New().Multiply(&e.x, zInv)
+	y := field.New().Multiply(&e.y, zInv)
 
 	return x, y
 }
 
 // Base sets the element to the group's base point a.k.a. canonical generator.
 func (e *Element) Base() *Element {
-	e.x.Set(baseX)
-	e.y.Set(baseY)
-	e.z.Set(scOne)
+	copy(e.x.E[:], baseX[:])
+	copy(e.y.E[:], baseY[:])
+	e.z.Set(field.One)
 
 	return e
 }
@@ -99,93 +110,78 @@ func (e *Element) Identity() *Element {
 	return e.set(&identity)
 }
 
-func (e *Element) addAffine(element *Element) *Element {
-	var t0, t1, ll, x, y big.Int
-	x1, y1 := e.affine()
-	x2, y2 := element.affine()
+// addAffine3Iso sets e = v + e and returns p, using affine coordinates on secp256k1 3-ISO, useful to optimize the point
+// addition in map-to-curve. We use the generic add because the others are tailored for a = 0 and b = 7.
+// Setting e = v + e allows small optimisations using fewer variables and fewer copies.
+func (e *Element) addAffine3Iso2(v *Element) *Element {
+	t0 := field.New().Subtract(&e.y, &v.y) // (y2-y1)
+	l := field.New().Subtract(&e.x, &v.x)  // (x2-x1)
+	l.Invert(*l)                           // 1/(x2-x1)
+	l.Multiply(t0, l)                      // l = (y2-y1)/(x2-x1)
 
-	fp.Sub(&t0, y2, y1)   // (y2-y1)
-	fp.Sub(&t1, x2, x1)   // (x2-x1)
-	fp.Inv(&t1, &t1)      // 1/(x2-x1)
-	fp.Mul(&ll, &t0, &t1) // l = (y2-y1)/(x2-x1)
+	t0.Square(l)           // l^2
+	t0.Subtract(t0, &v.x)  // l^2-x1
+	e.x.Subtract(t0, &e.x) // x3 = l^2-x1-x2
 
-	fp.Square(&t0, &ll)  // l^2
-	fp.Sub(&t0, &t0, x1) // l^2-x1
-	fp.Sub(&x, &t0, x2)  // x' = l^2-x1-x2
+	t0.Subtract(&v.x, &e.x) // x1-x3
+	t0.Multiply(t0, l)      // l(x1-x3)
+	e.y.Subtract(t0, &v.y)  // y3 = l(x1-x3)-y1
 
-	fp.Sub(&t0, x1, &x)   // x1-x3
-	fp.Mul(&t0, &t0, &ll) // l(x1-x3)
-	fp.Sub(&y, &t0, y1)   // y3 = l(x1-x3)-y1
-
-	e.x.Set(&x)
-	e.y.Set(&y)
-	e.z.Set(scOne)
+	// No need to set Z to 1 here because it won't be used before being set in isogenySecp256k13iso anyway.
 
 	return e
 }
 
-func (e *Element) setCoordinates(x, y, z *big.Int) {
-	e.x.Set(x)
-	e.y.Set(y)
-	e.z.Set(z)
-}
+// addProjectiveComplete implements algorithm 7 from "Complete addition formulas for prime order elliptic curve"
+// by Joost Renes, Craig Costello, and Lejla Batina (https://eprint.iacr.org/2015/1060.pdf), for a cost of 12M+2m3b+19a.
+func (e *Element) addProjectiveComplete(u, v *Element) *Element {
+	t0 := field.New().Multiply(&u.x, &v.x) // t0 := X1 * X2
+	t1 := field.New().Multiply(&u.y, &v.y) // t1 := Y1 * Y2
+	t2 := field.New().Multiply(&u.z, &v.z) // t2 := Z1 * Z2
 
-// https://eprint.iacr.org/2015/1060.pdf
-func (e *Element) addProjectiveComplete(element *Element) *Element {
-	var t0, t1, t2, t3, t4, x3, y3, z3 big.Int
+	t3 := field.New().Add(&u.x, &u.y) // t3 := X1 + Y1
+	t4 := field.New().Add(&v.x, &v.y) // t4 := X2 + Y2
+	t3.Multiply(t3, t4)               // t3 := t3 * t4
 
-	fp.Mul(&t0, &e.x, &element.x) // t0 := X1 * X2
-	fp.Mul(&t1, &e.y, &element.y) // t1 := Y1 * Y2
-	fp.Mul(&t2, &e.z, &element.z) // t2 := Z1 * Z2
+	t4.Add(t0, t1)      // t4 := t0 + t1
+	t3.Subtract(t3, t4) // t3 := t3 - t4
+	t4.Add(&u.y, &u.z)  // t4 := Y1 + Z1
 
-	fp.Add(&t3, &e.x, &e.y)             // t3 := X1 + Y1
-	fp.Add(&t4, &element.x, &element.y) // t4 := X2 + Y2
-	fp.Mul(&t3, &t3, &t4)               // t3 := t3 * t4
+	x3 := field.New().Add(&v.y, &v.z) // X3 := Y2 + Z2
+	t4.Multiply(t4, x3)               // t4 := t4 * X3
+	x3.Add(t1, t2)                    // X3 := t1 + t2
 
-	fp.Add(&t4, &t0, &t1)   // t4 := t0 + t1
-	fp.Sub(&t3, &t3, &t4)   // t3 := t3 - t4
-	fp.Add(&t4, &e.y, &e.z) // t4 := Y1 + Z1
+	t4.Subtract(t4, x3)               // t4 := t4 - X3
+	x3.Add(&u.x, &u.z)                // X3 := X1 + Z1
+	y3 := field.New().Add(&v.x, &v.z) // Y3 := X2 + Z2
 
-	fp.Add(&x3, &element.y, &element.z) // X3 := Y2 + Z2
-	fp.Mul(&t4, &t4, &x3)               // t4 := t4 * X3
-	fp.Add(&x3, &t1, &t2)               // X3 := t1 + t2
+	x3.Multiply(x3, y3) // X3 := X3 * Y3
+	y3.Add(t0, t2)      // Y3 := t0 + t2
+	y3.Subtract(x3, y3) // Y3 := X3 - Y3
 
-	fp.Sub(&t4, &t4, &x3)               // t4 := t4 - X3
-	fp.Add(&x3, &e.x, &e.z)             // X3 := X1 + Z1
-	fp.Add(&y3, &element.x, &element.z) // Y3 := X2 + Z2
+	x3.Add(t0, t0)       // X3 := t0 + t0
+	t0.Add(x3, t0)       // t0 := X3 + t0
+	t2.Multiply(&b3, t2) // t2 := b3 * t2
 
-	fp.Mul(&x3, &x3, &y3) // X3 := X3 * Y3
-	fp.Add(&y3, &t0, &t2) // Y3 := t0 + t2
-	fp.Sub(&y3, &x3, &y3) // Y3 := X3 - Y3
+	z3 := field.New().Add(t1, t2) // Z3 := t1 + t2
+	t1.Subtract(t1, t2)           // t1 := t1 - t2
+	y3.Multiply(&b3, y3)          // Y3 := b3 * Y3
 
-	fp.Add(&x3, &t0, &t0) // X3 := t0 + t0
-	fp.Add(&t0, &x3, &t0) // t0 := X3 + t0
-	fp.Mul(&t2, b3, &t2)  // t2 := b3 * t2
+	x3.Multiply(t4, y3) // X3 := t4 * Y3
+	t2.Multiply(t3, t1) // t2 := t3 * t1
+	x3.Subtract(t2, x3) // X3 := t2 - X3
 
-	fp.Add(&z3, &t1, &t2) // Z3 := t1 + t2
-	fp.Sub(&t1, &t1, &t2) // t1 := t1 - t2
-	fp.Mul(&y3, b3, &y3)  // Y3 := b3 * Y3
+	y3.Multiply(y3, t0) // Y3 := Y3 * t0
+	t1.Multiply(t1, z3) // t1 := t1 * Z3
+	y3.Add(t1, y3)      // Y3 := t1 + Y3
 
-	fp.Mul(&x3, &t4, &y3) // X3 := t4 * Y3
-	fp.Mul(&t2, &t3, &t1) // t2 := t3 * t1
-	fp.Sub(&x3, &t2, &x3) // X3 := t2 - X3
+	t0.Multiply(t0, t3) // t0 := t0 * t3
+	z3.Multiply(z3, t4) // Z3 := Z3 * t4
+	z3.Add(z3, t0)      // Z3 := Z3 + t0
 
-	fp.Mul(&y3, &y3, &t0) // Y3 := Y3 * t0
-	fp.Mul(&t1, &t1, &z3) // t1 := t1 * Z3
-	fp.Add(&y3, &t1, &y3) // Y3 := t1 + Y3
-
-	fp.Mul(&t0, &t0, &t3) // t0 := t0 * t3
-	fp.Mul(&z3, &z3, &t4) // Z3 := Z3 * t4
-	fp.Add(&z3, &z3, &t0) // Z3 := Z3 + t0
-
-	switch {
-	case element.IsIdentity():
-		e.setCoordinates(&e.x, &e.y, &e.z)
-	case e.IsIdentity():
-		e.setCoordinates(&element.x, &element.y, &element.z)
-	default:
-		e.setCoordinates(&x3, &y3, &z3)
-	}
+	e.x.Set(x3)
+	e.y.Set(y3)
+	e.z.Set(z3)
 
 	return e
 }
@@ -195,7 +191,7 @@ func (e *Element) add(element *Element) *Element {
 		return e
 	}
 
-	return e.addProjectiveComplete(element)
+	return e.addProjectiveComplete(e, element)
 }
 
 // Add sets the receiver to the sum of the input and the receiver, and returns the receiver.
@@ -203,48 +199,45 @@ func (e *Element) Add(element *Element) *Element {
 	return e.add(element)
 }
 
-// https://eprint.iacr.org/2015/1060.pdf
-func (e *Element) doubleProjectiveComplete() *Element {
-	var t0, t1, t2, x3, y3, z3 big.Int
+func (e *Element) doubleProjectiveComplete(u *Element) *Element {
+	t0 := field.New().Square(&u.y) // t0 := Y ^2
+	z3 := field.New().Add(t0, t0)  // Z3 := t0 + t0
+	z3.Add(z3, z3)                 // Z3 := Z3 + Z3
 
-	fp.Square(&t0, &e.y)  // t0 := Y ^2
-	fp.Add(&z3, &t0, &t0) // Z3 := t0 + t0
-	fp.Add(&z3, &z3, &z3) // Z3 := Z3 + Z3
+	z3.Add(z3, z3)                         // Z3 := Z3 + Z3
+	t1 := field.New().Multiply(&u.y, &u.z) // t1 := Y * Z
+	t2 := field.New().Square(&u.z)         // t2 := Z ^2
 
-	fp.Add(&z3, &z3, &z3)   // Z3 := Z3 + Z3
-	fp.Mul(&t1, &e.y, &e.z) // t1 := Y * Z
-	fp.Square(&t2, &e.z)    // t2 := Z ^2
+	t2.Multiply(&b3, t2)               // t2 := b3 * t2
+	x3 := field.New().Multiply(t2, z3) // X3 := t2 * Z3
+	y3 := field.New().Add(t0, t2)      // Y3 := t0 + t2
 
-	fp.Mul(&t2, b3, &t2)  // t2 := b3 * t2
-	fp.Mul(&x3, &t2, &z3) // X3 := t2 * Z3
-	fp.Add(&y3, &t0, &t2) // Y3 := t0 + t2
+	z3.Multiply(t1, z3) // Z3 := t1 * Z3
+	t1.Add(t2, t2)      // t1 := t2 + t2
+	t2.Add(t1, t2)      // t2 := t1 + t2
 
-	fp.Mul(&z3, &t1, &z3) // Z3 := t1 * Z3
-	fp.Add(&t1, &t2, &t2) // t1 := t2 + t2
-	fp.Add(&t2, &t1, &t2) // t2 := t1 + t2
+	t0.Subtract(t0, t2) // t0 := t0 - t2
+	y3.Multiply(t0, y3) // Y3 := t0 * Y3
+	y3.Add(x3, y3)      // Y3 := X3 + Y3
 
-	fp.Sub(&t0, &t0, &t2) // t0 := t0 - t2
-	fp.Mul(&y3, &t0, &y3) // Y3 := t0 * Y3
-	fp.Add(&y3, &x3, &y3) // Y3 := X3 + Y3
+	t1.Multiply(&u.x, &u.y) // t1 := X * Y
+	x3.Multiply(t0, t1)     // X3 := t0 * t1
+	x3.Add(x3, x3)          // X3 := X3 + X3
 
-	fp.Mul(&t1, &e.x, &e.y) // t1 := X * Y
-	fp.Mul(&x3, &t0, &t1)   // X3 := t0 * t1
-	fp.Add(&x3, &x3, &x3)   // X3 := X3 + X3
-
-	e.x.Set(&x3)
-	e.y.Set(&y3)
-	e.z.Set(&z3)
+	e.x.Set(x3)
+	e.y.Set(y3)
+	e.z.Set(z3)
 
 	return e
 }
 
 // Double sets the receiver to its double, and returns it.
 func (e *Element) Double() *Element {
-	return e.doubleProjectiveComplete()
+	return e.doubleProjectiveComplete(e)
 }
 
 func (e *Element) negate() *Element {
-	e.y.Neg(&e.y)
+	e.y.Negate(&e.y)
 	return e
 }
 
@@ -268,16 +261,17 @@ func (e *Element) Subtract(element *Element) *Element {
 	return e.add(q)
 }
 
-func (e *Element) multiply(scalar *Scalar) *Element {
-	if fp.AreEqual(&scalar.scalar, scOne) {
+func (e *Element) multiply(s *Scalar) *Element {
+	if s.IsOne() {
 		return e
 	}
 
 	r0 := newElement()
 	r1 := e.copy()
+	bits := s.Bits()
 
-	for i := scalar.scalar.BitLen() - 1; i >= 0; i-- {
-		if scalar.scalar.Bit(i) == 0 {
+	for i := 255; i >= 0; i-- {
+		if bits[i] == 0 {
 			r1.Add(r0)
 			r0.Double()
 		} else {
@@ -286,10 +280,12 @@ func (e *Element) multiply(scalar *Scalar) *Element {
 		}
 	}
 
-	return e.set(r0)
+	e.set(r0)
+
+	return e
 }
 
-// Multiply sets the receiver to the scalar multiplication of the receiver with the given Scalar, and returns it.
+// Multiply sets the receiver to the Scalar multiplication of the receiver with the given Scalar, and returns it.
 func (e *Element) Multiply(scalar *Scalar) *Element {
 	if scalar == nil {
 		return e.Identity()
@@ -299,17 +295,18 @@ func (e *Element) Multiply(scalar *Scalar) *Element {
 }
 
 // Equal returns 1 if the elements are equivalent, and 0 otherwise.
-func (e *Element) isEqual(element *Element) int {
-	x1, y1 := e.affine()
-	x2, y2 := element.affine()
-	x := x1.Cmp(x2)
-	y := y1.Cmp(y2)
+//
+// We verify whether the scales provided by the Zs represent the same point.
+func (e *Element) isEqual(u *Element) int {
+	// x
+	x1z2 := field.New().Multiply(&e.x, &u.z)
+	x2z1 := field.New().Multiply(&u.x, &e.z)
 
-	if x == 0 && y == 0 {
-		return 1
-	}
+	// y
+	y1z2 := field.New().Multiply(&e.y, &u.z)
+	y2z1 := field.New().Multiply(&u.y, &e.z)
 
-	return 0
+	return int(x1z2.Equals(x2z1) & y1z2.Equals(y2z1))
 }
 
 // Equal returns 1 if the elements are equivalent, and 0 otherwise.
@@ -319,7 +316,7 @@ func (e *Element) Equal(element *Element) int {
 
 // IsIdentity returns whether the Element is the point at infinity of the Group's underlying curve.
 func (e *Element) IsIdentity() bool {
-	return e.z.Sign() == 0 || e.x.Sign() == 0 && e.y.Sign() == 0
+	return e.z.IsZero() != 0
 }
 
 func (e *Element) set(element *Element) *Element {
@@ -337,9 +334,9 @@ func (e *Element) Set(element *Element) *Element {
 
 func (e *Element) copy() *Element {
 	return &Element{
-		x: *new(big.Int).Set(&e.x),
-		y: *new(big.Int).Set(&e.y),
-		z: *new(big.Int).Set(&e.z),
+		x: *field.New().Set(&e.x),
+		y: *field.New().Set(&e.y),
+		z: *field.New().Set(&e.z),
 	}
 }
 
@@ -350,74 +347,141 @@ func (e *Element) Copy() *Element {
 
 // Encode returns the compressed byte encoding of the element.
 func (e *Element) Encode() []byte {
-	var output [elementLength]byte
-
-	if e.IsIdentity() {
-		return output[:]
-	}
-
+	var out [elementLengthCompressed]byte
+	isIdentity := e.z.IsZero()
 	x, y := e.affine()
-	output[0] = byte(2 | y.Bit(0)&1)
-	x.FillBytes(output[1:])
+	ySign := subtle.ConstantTimeSelect(int(y.Sgn0()), encodingPrefixOdd, encodingPrefixEven)
+	out[0] = byte(subtle.ConstantTimeSelect(int(isIdentity), encodingPrefixIdentity, ySign))
+	subtle.ConstantTimeCopy(int(field.IsZero(isIdentity)), out[1:], x.Bytes())
+	del := subtle.ConstantTimeSelect(int(isIdentity), 1, elementLengthCompressed) // if identity, return only two bytes
 
-	return output[:]
+	return out[:del]
 }
 
-// XCoordinate returns the encoded x coordinate of the element, which is the same as Encode().
+// EncodeUncompressed returns the uncompressed byte encoding of the element.
+func (e *Element) EncodeUncompressed() []byte {
+	var out [elementLengthUncompressed]byte
+	out[0] = encodingPrefixUncompressed
+	x, y := e.affine()
+	copy(out[1:], x.Bytes())
+	copy(out[33:], y.Bytes())
+
+	return out[:]
+}
+
+// XCoordinate returns the encoded x coordinate of the element, which is the same as Encode() without the header.
 func (e *Element) XCoordinate() []byte {
 	return e.Encode()[1:]
 }
 
-// secp256Polynomial applies y^2=x^3+ax+b to recover y^2 from x.
-func secp256Polynomial(y, x *big.Int) {
-	fp.Mul(y, x, x)
-	fp.Mul(y, y, x)
-	fp.Add(y, y, b)
+// Secp256Polynomial applies y^2=x^3+ax+b (with a = 0) to recover y^2 from x.
+func Secp256Polynomial(y, x *field.Element) {
+	y.Square(x)
+	y.Multiply(y, x)
+	y.Add(y, &b)
+}
+
+// DecodeCoordinates set the receiver to the decoding of the affine coordinates given by x and y, and returns an error
+// on failure.
+func (e *Element) DecodeCoordinates(x, y [32]byte) error {
+	fex, reduced := field.New().FromBytesWithReduce(x)
+	if reduced == 0 {
+		return errParamInvalidPointEncoding
+	}
+
+	fey, reduced := field.New().FromBytesWithReduce(y)
+	if reduced == 0 {
+		return errParamInvalidPointEncoding
+	}
+
+	var y2 field.Element
+	Secp256Polynomial(&y2, fex)
+
+	if y2.Equals(field.New().Square(fey)) != 1 {
+		return errParamInvalidPointEncoding
+	}
+
+	e.x.Set(fex)
+	e.y.Set(fey)
+	e.z.One()
+
+	return nil
+}
+
+// DecodeCompressed sets the receiver to a decoding of the input data in compressed form, and returns an error
+// on failure.
+func (e *Element) DecodeCompressed(data []byte) error {
+	if len(data) != elementLengthCompressed {
+		return errParamInvalidPointEncoding
+	}
+
+	if data[0] != encodingPrefixEven && data[0] != encodingPrefixOdd {
+		return errParamInvalidPointEncoding
+	}
+
+	/*
+		- check coordinates are in the correct range
+		- check point is on the curve / not infinity
+		- point order validation is not necessary since the cofactor is 1
+	*/
+
+	// Set x in the field, and return an error if it's not reduced.
+	x := field.New()
+	if _, reduced := x.FromBytesWithReduce([32]byte(data[1:])); reduced == 0 {
+		return errParamInvalidPointEncoding
+	}
+
+	var y2 field.Element
+	Secp256Polynomial(&y2, x)
+
+	y, isSquare := field.New().SqrtRatio(&y2, field.One)
+	if isSquare != 1 {
+		// Point is not on curve
+		return errParamInvalidPointEncoding
+	}
+
+	cond := y.Sgn0() ^ uint64(data[0]&1)
+	e.y.Negate(y)
+
+	e.x.Set(x)
+	e.y.CMove(cond, y, &e.y)
+	e.z.One()
+
+	return nil
+}
+
+// DecodeUncompressed sets the receiver to a decoding of the input data in uncompressed form, and returns an error
+// on failure.
+func (e *Element) DecodeUncompressed(data []byte) error {
+	if len(data) != elementLengthUncompressed {
+		return errParamInvalidPointEncoding
+	}
+
+	if data[0] != encodingPrefixUncompressed {
+		return errParamInvalidPointEncoding
+	}
+
+	return e.DecodeCoordinates([32]byte(data[1:33]), [32]byte(data[33:]))
 }
 
 // Decode sets the receiver to a decoding of the input data, and returns an error on failure.
 func (e *Element) Decode(data []byte) error {
-	/*
-		- check coordinates are in the correct range
-		- check point is on the curve
-		- point is not infinity
-		- point order validation is not necessary since the cofactor is 1
-	*/
-	if len(data) != elementLength {
+	switch len(data) {
+	case elementLengthIdentity:
+		if data[0] != encodingPrefixIdentity {
+			return errParamInvalidPointEncoding
+		}
+
+		e.Identity()
+
+		return nil
+	case elementLengthCompressed:
+		return e.DecodeCompressed(data)
+	case elementLengthUncompressed:
+		return e.DecodeUncompressed(data)
+	default:
 		return errParamInvalidPointEncoding
 	}
-
-	if data[0] != 2 && data[0] != 3 {
-		return errParamInvalidPointEncoding
-	}
-
-	x := new(big.Int).SetBytes(data[1:])
-	if x.Cmp(fp.Order()) != -1 {
-		return errParamInvalidPointEncoding
-	}
-
-	var y big.Int
-	secp256Polynomial(&y, x)
-
-	if !fp.IsSquare(&y) {
-		return errParamInvalidPointEncoding
-	}
-
-	fp.SquareRoot(&y, &y)
-
-	cond := int(y.Bit(0)&1) ^ int(data[0]&1)
-	fp.CondNeg(&y, &y, cond)
-
-	// Identity Check
-	if x.Cmp(scZero) == 0 && y.Cmp(scZero) == 0 {
-		return errIdentity
-	}
-
-	e.x.Set(x)
-	e.y.Set(&y)
-	e.z.Set(scOne)
-
-	return nil
 }
 
 // Hex returns the fixed-sized hexadecimal encoding of e.

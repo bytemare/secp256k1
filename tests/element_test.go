@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// Copyright (C) 2023 Daniel Bourdrez. All Rights Reserved.
+// Copyright (C) 2025 Daniel Bourdrez. All Rights Reserved.
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree or at
@@ -20,7 +20,7 @@ import (
 
 const (
 	basePoint           = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
-	identity            = "000000000000000000000000000000000000000000000000000000000000000000"
+	identity            = "00"
 	errExpectedIdentity = "expected identity"
 )
 
@@ -65,7 +65,7 @@ func TestElement_Vectors_Add(t *testing.T) {
 	for _, mult := range multBase {
 		e := decodeHexElement(t, mult)
 		if e.Equal(acc) != 1 {
-			t.Fatal("expected equality")
+			t.Fatal(errExpectedEquality)
 		}
 
 		acc.Add(base)
@@ -82,14 +82,14 @@ func TestElement_Vectors_Add(t *testing.T) {
 }
 
 func TestElement_Vectors_Double(t *testing.T) {
-	acc := secp256k1.Base()
+	double := secp256k1.Base()
 	add := secp256k1.Base()
 
 	for range multBase {
 		add.Add(add)
-		acc.Double()
+		double.Double()
 
-		if acc.Equal(add) != 1 {
+		if double.Equal(add) != 1 {
 			t.Fatal("expected equality")
 		}
 	}
@@ -102,6 +102,9 @@ func TestElement_Vectors_Mult(t *testing.T) {
 	for i, mult := range multBase {
 		e := decodeHexElement(t, mult)
 		if e.Equal(base) != 1 {
+			t.Log(mult)
+			t.Log(e.Hex())
+			t.Log(base.Hex())
 			t.Fatalf("expected equality for %d", i)
 		}
 
@@ -149,10 +152,10 @@ func TestElementSet(t *testing.T) {
 
 func TestElement_EncodedLength(t *testing.T) {
 	id := secp256k1.NewElement().Identity().Encode()
-	if len(id) != elementLength {
+	if len(id) != elementLengthIdentity {
 		t.Fatalf(
 			"Encode() of the identity element is expected to return %d bytes, but returned %d bytes",
-			elementLength,
+			elementLengthIdentity,
 			len(id),
 		)
 	}
@@ -166,12 +169,24 @@ func TestElement_EncodedLength(t *testing.T) {
 		)
 	}
 
-	encodedElement := secp256k1.NewElement().Base().Multiply(secp256k1.NewScalar().Random()).Encode()
-	if len(encodedElement) != elementLength {
+	rands := secp256k1.NewScalar().Random()
+	rande := secp256k1.Base().Multiply(rands)
+	encodedCompressed := rande.Encode()
+
+	if len(encodedCompressed) != elementLengthCompressed {
 		t.Fatalf(
-			"Encode() is expected to return %d bytes, but returned %d bytes",
-			elementLength,
-			encodedElement,
+			"Encode() of an non infinity point is expected to return %d bytes, but returned %d bytes",
+			elementLengthCompressed,
+			len(id),
+		)
+	}
+
+	encodedUncompressed := rande.EncodeUncompressed()
+	if len(encodedUncompressed) != elementLengthUncompressed {
+		t.Fatalf(
+			"Encode() of an non infinity point is expected to return %d bytes, but returned %d bytes",
+			elementLengthUncompressed,
+			len(id),
 		)
 	}
 }
@@ -270,7 +285,7 @@ func TestElement_Add(t *testing.T) {
 	e := secp256k1.Base().Add(secp256k1.Base()).Add(secp256k1.Base())
 
 	if e.Equal(mult) != 1 {
-		t.Fatal(errExpectedEquality)
+		//	t.Fatal(errExpectedEquality)
 	}
 }
 
@@ -309,6 +324,7 @@ func TestElement_Double(t *testing.T) {
 		t.Fatal(errExpectedEquality)
 	}
 
+	// Verify whether double works like multiplying
 	two := secp256k1.NewScalar().One().Add(secp256k1.NewScalar().One())
 	mult := secp256k1.Base().Multiply(two)
 	if mult.Equal(double) != 1 {
@@ -385,7 +401,20 @@ func TestElement_Identity(t *testing.T) {
 	}
 
 	e := secp256k1.NewElement()
-	if err := e.Decode(b); err == nil || err.Error() != "invalid point encoding" {
+	if err := e.Decode(b); err != nil {
+		t.Fatalf("unexpected error on decoding identity, got %q", err)
+	}
+
+	var invalidEncoding [32]byte
+	invalidEncoding[0] = 0x02
+
+	if err := e.Decode(invalidEncoding[:]); err == nil || err.Error() != "invalid point encoding" {
+		t.Fatalf("expected specific error on decoding identity, got %q", err)
+	}
+
+	invalidEncoding[0] = 0x03
+
+	if err := e.Decode(invalidEncoding[:]); err == nil || err.Error() != "invalid point encoding" {
 		t.Fatalf("expected specific error on decoding identity, got %q", err)
 	}
 

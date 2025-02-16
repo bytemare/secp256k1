@@ -12,7 +12,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
-	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
@@ -50,25 +49,24 @@ type h2cVector struct {
 	U   []string `json:"u"`
 }
 
-func vectorToSecp256k1(x, y string) []byte {
-	var output [33]byte
-
+func vectorToPoint(t *testing.T, x, y string) *secp256k1.Element {
 	yb, _ := hex.DecodeString(y[2:])
-	yint := new(big.Int).SetBytes(yb)
-	output[0] = byte(2 | yint.Bit(0)&1)
-
 	xb, _ := hex.DecodeString(x[2:])
-	copy(output[1:], xb)
 
-	return output[:]
+	e := secp256k1.NewElement()
+	if err := e.DecodeCoordinates([32]byte(xb), [32]byte(yb)); err != nil {
+		t.Fatal(err)
+	}
+
+	return e
 }
 
 func (v *h2cVector) run(t *testing.T) {
-	var expected string
+	var expected *secp256k1.Element
 
 	switch v.Ciphersuite {
 	case suiteNuName, suiteRoName:
-		expected = hex.EncodeToString(vectorToSecp256k1(v.P.X, v.P.Y))
+		expected = vectorToPoint(t, v.P.X, v.P.Y)
 	default:
 		t.Fatal("invalid Group")
 	}
@@ -77,14 +75,18 @@ func (v *h2cVector) run(t *testing.T) {
 	case "RO_":
 		p := secp256k1.HashToGroup([]byte(v.Msg), []byte(v.Dst))
 
-		if p.Hex() != expected {
-			t.Fatalf("Unexpected HashToGroup output.\n\tExpected %q\n\tgot  \t%q", expected, p.Hex())
+		if p.Equal(expected) != 1 {
+			t.Log(v.P)
+			t.Logf("v.U: %v", v.U)
+			t.Logf("v.Q0: %v", v.Q0)
+			t.Logf("v.Q1: %v", v.Q1)
+			t.Fatalf("Unexpected HashToGroup output.\n\twant: %q\n\tgot : %q", expected.Hex(), p.Hex())
 		}
 	case "NU_":
 		p := secp256k1.EncodeToGroup([]byte(v.Msg), []byte(v.Dst))
 
-		if p.Hex() != expected {
-			t.Fatalf("Unexpected EncodeToGroup output.\n\tExpected %q\n\tgot %q", expected, p.Hex())
+		if p.Equal(expected) != 1 {
+			t.Fatalf("Unexpected EncodeToGroup output.\n\twant: %q\n\tgot : %q", expected.Hex(), p.Hex())
 		}
 	default:
 		t.Fatal("ciphersuite not recognized")

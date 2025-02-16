@@ -23,7 +23,6 @@ linters:
     - errorlint
     - exhaustive
     #- exhaustruct
-    - exportloopref
     - fatcontext
     - forbidigo
     - forcetypeassert
@@ -276,10 +275,20 @@ issues:
   # Default value for this option is true.
   exclude-use-default: false
 
+  exclude-rules:
+    - path: ../element.go
+      text: "assignments should only be cuddled with other assignments"
+    - path: ../mapping.go
+      text: "assignments should only be cuddled with other assignments"
+
 run:
   tests: false
 
 output:
   formats:
-    - format: github-actions
+    - format: colored-line-number
+      path: stdout
+  sort-results: true
+  sort-order:
+    - file
   show-stats: true

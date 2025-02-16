@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// Copyright (C) 2023 Daniel Bourdrez. All Rights Reserved.
+// Copyright (C) 2025 Daniel Bourdrez. All Rights Reserved.
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree or at
@@ -16,11 +16,13 @@ import (
 )
 
 const (
-	scalarLength        = 32
-	elementLength       = 33
-	h2c                 = "secp256k1_XMD:SHA-256_SSWU_RO_"
-	fieldOrder          = "115792089237316195423570985008687907853269984665640564039457584007908834671663"
-	errExpectedEquality = "expected equality"
+	scalarLength              = 32
+	elementLengthIdentity     = 1
+	elementLengthCompressed   = 33
+	elementLengthUncompressed = 65
+	h2c                       = "secp256k1_XMD:SHA-256_SSWU_RO_"
+	fieldOrder                = "115792089237316195423570985008687907853269984665640564039457584007908834671663"
+	errExpectedEquality       = "expected equality"
 )
 
 func TestGroup_Ciphersuite(t *testing.T) {
@@ -36,7 +38,7 @@ func TestGroup_ScalarLength(t *testing.T) {
 }
 
 func TestGroup_ElementLength(t *testing.T) {
-	if secp256k1.ElementLength() != elementLength {
+	if secp256k1.ElementLength() != elementLengthCompressed {
 		t.Fatal(errExpectedEquality)
 	}
 }
