@@ -23,7 +23,6 @@ linters:
     - errorlint
     - exhaustive
     #- exhaustruct
-    - exportloopref
     - fatcontext
     - forbidigo
     - forcetypeassert
@@ -91,7 +90,6 @@ linters:
     - stylecheck
     - tagalign
     - tagliatelle
-    - tenv
     - testableexamples
     - testifylint
     - testpackage
@@ -102,11 +100,12 @@ linters:
     - unparam
     - unused
     - usestdlibvars
+    - usetesting
     #- varnamelen
     - wastedassign
     - whitespace
     - wrapcheck
-    - wsl
+    #- wsl
     - zerologlint
 
 linters-settings:
@@ -276,10 +275,20 @@ issues:
   # Default value for this option is true.
   exclude-use-default: false
 
+  exclude-rules:
+    - path: ../element.go
+      text: "assignments should only be cuddled with other assignments"
+    - path: ../mapping.go
+      text: "assignments should only be cuddled with other assignments"
+
 run:
   tests: false
 
 output:
   formats:
-    - format: github-actions
+    - format: colored-line-number
+      path: stdout
+  sort-results: true
+  sort-order:
+    - file
   show-stats: true

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// Copyright (C) 2023 Daniel Bourdrez. All Rights Reserved.
+// Copyright (C) 2025 Daniel Bourdrez. All Rights Reserved.
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree or at
@@ -9,24 +9,25 @@
 package secp256k1
 
 import (
-	"crypto/subtle"
+	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
+	"math/bits"
+
+	"github.com/bytemare/secp256k1/internal/scalar"
 )
 
 var (
-	// errParamScalarLength indicates an invalid scalar length.
+	// errParamScalarLength indicates an invalid Scalar length.
 	errParamScalarLength = errors.New("invalid scalar length")
 
-	// errParamNilScalar indicates a forbidden nil or empty scalar.
+	// errParamNilScalar indicates a forbidden nil or empty Scalar.
 	errParamNilScalar = errors.New("nil or empty scalar")
 
-	// errParamNegScalar reports an error when the input scalar is negative.
-	// errParamNegScalar = errors.New("negative scalar").
-
-	// errParamScalarTooBig reports an error when the input scalar is too big.
+	// errParamScalarTooBig reports an error when the input Scalar is too big.
 	errParamScalarTooBig = errors.New("scalar too big")
 )
 
@@ -34,170 +35,265 @@ type disallowEqual [0]func()
 
 // Scalar implements the Scalar interface for Edwards25519 group scalars.
 type Scalar struct {
-	_      disallowEqual
-	scalar big.Int
+	_ disallowEqual
+	S scalar.MontgomeryDomainFieldElement
 }
-
-var (
-	scZero = big.NewInt(0)
-	scOne  = big.NewInt(1)
-)
 
 func newScalar() *Scalar {
-	return &Scalar{scalar: big.Int{}}
+	return &Scalar{}
 }
 
-// NewScalar returns a new scalar set to 0.
+// NewScalar returns a new Scalar set to 0.
 func NewScalar() *Scalar {
 	return newScalar()
 }
 
-// Zero sets the scalar to 0, and returns it.
+// Zero sets the Scalar to 0, and returns it.
 func (s *Scalar) Zero() *Scalar {
-	s.scalar.Set(scZero)
+	s.S[0] = 0
+	s.S[1] = 0
+	s.S[2] = 0
+	s.S[3] = 0
+
 	return s
 }
 
-// One sets the scalar to 1, and returns it.
+// One sets the Scalar to 1, and returns it.
 func (s *Scalar) One() *Scalar {
-	s.scalar.Set(scOne)
+	scalar.SetOne(&s.S)
 	return s
 }
 
-// MinusOne sets the scalar to order-1, and returns it.
+// MinusOne sets the Scalar to order-1, and returns it.
 func (s *Scalar) MinusOne() *Scalar {
-	s.scalar.SetBytes(scMinusOne)
+	s.S[0] = scalar.OrderMinus1[0]
+	s.S[1] = scalar.OrderMinus1[1]
+	s.S[2] = scalar.OrderMinus1[2]
+	s.S[3] = scalar.OrderMinus1[3]
+
 	return s
 }
 
-// Random sets the current scalar to a new random scalar and returns it.
-// The random source is crypto/rand, and this functions is guaranteed to return a non-zero scalar.
+// Random sets the current Scalar to a new random Scalar and returns it.
+// The random source is crypto/rand, and this functions is guaranteed to return a non-zero Scalar.
 func (s *Scalar) Random() *Scalar {
-	for {
-		fn.Random(&s.scalar)
+	var buf [32]byte
+	var m scalar.MontgomeryDomainFieldElement
 
-		if !s.IsZero() {
-			return s
+	for scalar.IsFEZero(&m) == 1 {
+		_, err := io.ReadFull(rand.Reader, buf[:])
+		if err != nil {
+			panic(err)
 		}
+
+		nm := scalar.BytesToNonMontgomery(buf)
+		_ = scalar.Reduce(nm)
+
+		scalar.ToMontgomery(&m, nm)
 	}
+
+	copy(s.S[:], m[:])
+
+	return s
 }
 
 // Add sets the receiver to the sum of the input and the receiver, and returns the receiver.
-func (s *Scalar) Add(scalar *Scalar) *Scalar {
-	if scalar == nil {
+func (s *Scalar) Add(t *Scalar) *Scalar {
+	if t == nil {
 		return s
 	}
 
-	fn.Add(&s.scalar, &s.scalar, &scalar.scalar)
+	scalar.Add(&s.S, &s.S, &t.S)
 
 	return s
 }
 
 // Subtract subtracts the input from the receiver, and returns the receiver.
-func (s *Scalar) Subtract(scalar *Scalar) *Scalar {
-	if scalar == nil {
+func (s *Scalar) Subtract(t *Scalar) *Scalar {
+	if t == nil {
 		return s
 	}
 
-	fn.Sub(&s.scalar, &s.scalar, &scalar.scalar)
+	scalar.Sub(&s.S, &s.S, &t.S)
 
 	return s
 }
 
 // Multiply multiplies the receiver with the input, and returns the receiver.
-func (s *Scalar) Multiply(scalar *Scalar) *Scalar {
-	if scalar == nil {
+func (s *Scalar) Multiply(t *Scalar) *Scalar {
+	if t == nil {
 		return s.Zero()
 	}
 
-	fn.Mul(&s.scalar, &s.scalar, &scalar.scalar)
+	scalar.Mul(&s.S, &s.S, &t.S)
 
 	return s
 }
 
-// Pow sets s to s**scalar modulo the group order, and returns s. If scalar is nil, it returns 1.
-func (s *Scalar) Pow(scalar *Scalar) *Scalar {
-	if scalar == nil || scalar.IsZero() {
+// Square sets the receiver to its square.
+func (s *Scalar) Square() *Scalar {
+	scalar.Square(&s.S, &s.S)
+	return s
+}
+
+// Invert sets the receiver to its inverse.
+func (s *Scalar) Invert() *Scalar {
+	scalar.Invert(&s.S, s.S)
+	return s
+}
+
+// Bits returns the bit expansion of the receiver.
+func (s *Scalar) Bits() [256]uint8 {
+	var (
+		n   scalar.NonMontgomeryDomainFieldElement
+		out [256]uint8
+	)
+	scalar.FromMontgomery(&n, &s.S)
+
+	for i := range 255 {
+		out[i] = uint8((n[i/64] >> (i % 64)) & 1)
+	}
+
+	return out
+}
+
+// Pow sets s to s^t modulo the group order, and returns s. If t is nil or equals 0, s is set to 1.
+// Now using variable time big.Int because for some reason I can't get the constant time algorithm to work on Fiat.
+func (s *Scalar) Pow(t *Scalar) *Scalar {
+	if t == nil || t.IsZero() {
 		return s.One()
 	}
 
-	if scalar.Equal(scalar.Copy().One()) == 1 {
+	if t.IsOne() {
 		return s
 	}
 
-	fn.Exponent(&s.scalar, &s.scalar, &scalar.scalar)
+	order := new(big.Int).SetBytes(Order())
+	bigS := big.NewInt(0).SetBytes(s.Encode())
+	bigT := big.NewInt(0).SetBytes(t.Encode())
+	bigS.Exp(bigS, bigT, order)
 
-	return s
-}
+	// If necessary, build a buffer of right size, so it gets correctly interpreted.
+	bytes := bigS.Bytes()
 
-// Invert sets the receiver to its modular inverse ( 1 / s ), and returns it.
-func (s *Scalar) Invert() *Scalar {
-	fn.Inv(&s.scalar, &s.scalar)
+	if l := scalarLength - len(bytes); l > 0 {
+		buf := make([]byte, l, scalarLength)
+		buf = append(buf, bytes...)
+		bytes = buf
+	}
+
+	if err := s.Decode(bytes); err != nil {
+		panic(err)
+	}
+
+	/*
+		s1 := new(Scalar).One()
+		s2 := s.Copy()
+		bits := t.Bits()
+		var i int
+		for i = 255; bits[i] == 0; i-- {
+		}
+
+		for ; i >= 0; i-- {
+			if bits[i] == 0 {
+				s2.Multiply(s1)
+				s1.Square()
+			} else {
+				s1.Multiply(s2)
+				s2.Square()
+			}
+
+		}
+
+		s.Set(s1)
+
+		return s
+
+	*/
+
 	return s
 }
 
 // Equal returns 1 if the scalars are equal, and 0 otherwise.
-func (s *Scalar) Equal(scalar *Scalar) int {
-	if scalar == nil {
+func (s *Scalar) Equal(t *Scalar) int {
+	if t == nil {
 		return 0
 	}
 
-	return subtle.ConstantTimeCompare(s.scalar.Bytes(), scalar.scalar.Bytes())
+	return int(scalar.Equal(&s.S, &t.S))
 }
 
-// LessOrEqual returns 1 if s <= scalar and 0 otherwise.
-func (s *Scalar) LessOrEqual(scalar *Scalar) int {
-	ienc := s.Encode()
-	jenc := scalar.Encode()
-	var res bool
+// LessOrEqual returns 1 if s <= t and 0 otherwise.
+func (s *Scalar) LessOrEqual(t *Scalar) uint64 {
+	var (
+		borrow uint64
+		diff   [4]uint64
+	)
 
-	for i := range ienc {
-		res = res || (ienc[i] > jenc[i])
-	}
+	diff[0], borrow = bits.Sub64(s.S[0], t.S[0], borrow)
+	diff[1], borrow = bits.Sub64(s.S[1], t.S[1], borrow)
+	diff[2], borrow = bits.Sub64(s.S[2], t.S[2], borrow)
+	diff[3], borrow = bits.Sub64(s.S[3], t.S[3], borrow)
 
-	if res {
-		return 0
-	}
+	equal := scalar.IsZero(diff[0] | diff[1] | diff[2] | diff[3])
 
-	return 1
+	return equal | scalar.IsNonZero(borrow)
 }
 
-// IsZero returns whether the scalar is 0.
+// IsZero returns whether the Scalar is 0.
 func (s *Scalar) IsZero() bool {
-	return fn.AreEqual(&s.scalar, scZero)
+	return scalar.IsFEZero(&s.S) == 1
 }
 
-// Set sets the receiver to the value of the argument scalar, and returns the receiver.
-func (s *Scalar) Set(scalar *Scalar) *Scalar {
-	if scalar == nil {
-		return s.Zero()
-	}
-
-	s.scalar.Set(&scalar.scalar)
-
-	return s
-}
-
-// SetUInt64 sets s to i modulo the field order, and returns it.
-func (s *Scalar) SetUInt64(i uint64) *Scalar {
-	s.scalar.SetUint64(i)
-	fn.Mod(&s.scalar)
-
-	return s
+// IsOne returns whether s == 1.
+func (s *Scalar) IsOne() bool {
+	return scalar.Equal(&s.S, &scalar.One) == 1
 }
 
 // Copy returns a copy of the receiver.
 func (s *Scalar) Copy() *Scalar {
-	cpy := newScalar()
-	cpy.scalar.Set(&s.scalar)
-
-	return cpy
+	return newScalar().Set(s)
 }
 
-// Encode returns the compressed byte encoding of the scalar.
+func (s *Scalar) set(t *scalar.MontgomeryDomainFieldElement) *Scalar {
+	copy(s.S[:], t[:])
+	return s
+}
+
+// Set sets the receiver to the value of the argument Scalar, and returns the receiver.
+func (s *Scalar) Set(t *Scalar) *Scalar {
+	if t == nil {
+		return s.Zero()
+	}
+
+	return s.set(&t.S)
+}
+
+// SetUInt64 sets s to i modulo the group order, and returns it.
+func (s *Scalar) SetUInt64(i uint64) *Scalar {
+	nm := scalar.NonMontgomeryDomainFieldElement{i, 0, 0, 0}
+	scalar.ToMontgomery(&s.S, &nm)
+
+	return s
+}
+
+// CSelect sets the receiver to u if cond == 0, and to v otherwise, in constant-time.
+func (s *Scalar) CSelect(cond uint64, u, v *Scalar) error {
+	if u == nil || v == nil {
+		return errParamNilScalar
+	}
+
+	scalar.CMove(&s.S, cond, &u.S, &v.S)
+
+	return nil
+}
+
+// Encode returns the compressed byte encoding of the Scalar.
 func (s *Scalar) Encode() []byte {
-	scalar := make([]byte, scalarLength) // length := (fn.BitLen() + 7) / 8 = 32
-	return s.scalar.FillBytes(scalar)
+	var nm scalar.NonMontgomeryDomainFieldElement
+	scalar.FromMontgomery(&nm, &s.S)
+
+	return scalar.NonMontgomeryToBytes(&nm)
 }
 
 // Decode sets the receiver to a decoding of the input data, and returns an error on failure.
@@ -211,17 +307,9 @@ func (s *Scalar) Decode(in []byte) error {
 		return errParamScalarLength
 	}
 
-	// warning - SetBytes interprets the input as a non-signed integer, so this will always be false
-	// 	if tmp.Sign() < 0 {
-	//		return errParamNegScalar
-	//	}
-	tmp := new(big.Int).SetBytes(in)
-
-	if fn.Order().Cmp(tmp) <= 0 {
+	if scalar.ReduceBytes(&s.S, [scalarLength]byte(in)) == 0 {
 		return errParamScalarTooBig
 	}
-
-	s.scalar.Set(tmp)
 
 	return nil
 }
@@ -231,7 +319,7 @@ func (s *Scalar) Hex() string {
 	return hex.EncodeToString(s.Encode())
 }
 
-// DecodeHex sets s to the decoding of the hex encoded scalar.
+// DecodeHex sets s to the decoding of the hex encoded Scalar.
 func (s *Scalar) DecodeHex(h string) error {
 	encoded, err := hex.DecodeString(h)
 	if err != nil {
@@ -241,12 +329,12 @@ func (s *Scalar) DecodeHex(h string) error {
 	return s.Decode(encoded)
 }
 
-// MarshalBinary returns the compressed byte encoding of the scalar.
+// MarshalBinary returns the compressed byte encoding of the Scalar.
 func (s *Scalar) MarshalBinary() ([]byte, error) {
 	return s.Encode(), nil
 }
 
-// UnmarshalBinary sets e to the decoding of the byte encoded scalar.
+// UnmarshalBinary sets e to the decoding of the byte encoded Scalar.
 func (s *Scalar) UnmarshalBinary(data []byte) error {
 	return s.Decode(data)
 }
