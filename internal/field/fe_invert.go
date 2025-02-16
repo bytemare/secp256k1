@@ -10,7 +10,7 @@
 
 package field
 
-// Invert computes e = 1/u (mod p) and returns it, by computing e = u^(p-2) mod p.
+// Invert computes z = 1/x (mod p) and returns it, by computing z = x^(p-2) mod p.
 // For some reason, addchain outputs something different than from the examples, using the receiver in the computation,
 // which doesn't work if the receiver and the argument point to the same element. Dereferencing and thus using a local
 // copy of the original does the trick.

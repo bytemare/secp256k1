@@ -80,20 +80,17 @@ func NewElement() *Element {
 }
 
 // affine returns the affine (x,y) coordinates from the inner standard projective representation.
-func (e *Element) affine() (*field.Element, *field.Element) {
-	if e.z.IsZero() != 0 {
-		return field.New(), field.New()
-	}
+func (e *Element) affine() *Element {
+	isZero := e.z.IsZero()
+	n := &Element{}
 
-	if e.z.IsOne() != 0 {
-		return &e.x, &e.y
-	}
+	n.z.Invert(e.z) // we can use n's z since we won't use it otherwise
+	n.x.Multiply(&n.z, &e.x)
+	n.y.Multiply(&n.z, &e.y)
+	n.x.CMove(isZero, &n.x, &identity.x)
+	n.y.CMove(isZero, &n.y, &identity.y)
 
-	zInv := field.New().Invert(e.z)
-	x := field.New().Multiply(&e.x, zInv)
-	y := field.New().Multiply(&e.y, zInv)
-
-	return x, y
+	return n
 }
 
 // Base sets the element to the group's base point a.k.a. canonical generator.
@@ -349,10 +346,10 @@ func (e *Element) Copy() *Element {
 func (e *Element) Encode() []byte {
 	var out [elementLengthCompressed]byte
 	isIdentity := e.z.IsZero()
-	x, y := e.affine()
-	ySign := subtle.ConstantTimeSelect(int(y.Sgn0()), encodingPrefixOdd, encodingPrefixEven)
+	affine := e.affine()
+	ySign := subtle.ConstantTimeSelect(int(affine.y.Sgn0()), encodingPrefixOdd, encodingPrefixEven)
 	out[0] = byte(subtle.ConstantTimeSelect(int(isIdentity), encodingPrefixIdentity, ySign))
-	subtle.ConstantTimeCopy(int(field.IsZero(isIdentity)), out[1:], x.Bytes())
+	subtle.ConstantTimeCopy(int(field.IsZero(isIdentity)), out[1:], affine.x.Bytes())
 	del := subtle.ConstantTimeSelect(int(isIdentity), 1, elementLengthCompressed) // if identity, return only two bytes
 
 	return out[:del]
@@ -361,12 +358,17 @@ func (e *Element) Encode() []byte {
 // EncodeUncompressed returns the uncompressed byte encoding of the element.
 func (e *Element) EncodeUncompressed() []byte {
 	var out [elementLengthUncompressed]byte
-	out[0] = encodingPrefixUncompressed
-	x, y := e.affine()
-	copy(out[1:], x.Bytes())
-	copy(out[33:], y.Bytes())
+	return e.fillUncompressed(&out)
+}
 
-	return out[:]
+// using this outlining saves an allocation...
+func (e *Element) fillUncompressed(in *[elementLengthUncompressed]byte) []byte {
+	affine := e.affine()
+	out := append(in[:0], encodingPrefixUncompressed) //nolint:gocritic,wsl
+	out = append(out, affine.x.Bytes()...)
+	out = append(out, affine.y.Bytes()...)
+
+	return out
 }
 
 // XCoordinate returns the encoded x coordinate of the element, which is the same as Encode() without the header.
