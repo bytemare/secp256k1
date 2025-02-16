@@ -10,10 +10,7 @@
 package secp256k1
 
 import (
-	"crypto"
 	"slices"
-
-	"github.com/bytemare/hash2curve"
 
 	"github.com/bytemare/secp256k1/internal/field"
 	"github.com/bytemare/secp256k1/internal/scalar"
@@ -49,7 +46,7 @@ func Base() *Element {
 // HashToScalar returns a safe mapping of the arbitrary input to a Scalar.
 // The DST must not be empty or nil, and is recommended to be longer than 16 bytes.
 func HashToScalar(input, dst []byte) *Scalar {
-	uniform := hash2curve.ExpandXMD(crypto.SHA256, input, dst, uint(secLength))
+	uniform := expandXMD(input, dst, uint(secLength))
 	s := NewScalar()
 
 	scalar.HashToFieldElement(&s.S, [48]byte(uniform))
@@ -61,7 +58,7 @@ func HashToScalar(input, dst []byte) *Scalar {
 // The DST must not be empty or nil, and is recommended to be longer than 16 bytes.
 func HashToGroup(input, dst []byte) *Element {
 	expLength := 2 * 1 * uint(secLength) // elements * ext * security length
-	uniform := hash2curve.ExpandXMD(crypto.SHA256, input, dst, expLength)
+	uniform := expandXMD(input, dst, expLength)
 	u0 := field.New().HashToFieldElement([secLength]byte(uniform[:secLength]))
 	u1 := field.New().HashToFieldElement([secLength]byte(uniform[secLength : 2*secLength]))
 	q0 := sswu(u0)
@@ -74,7 +71,7 @@ func HashToGroup(input, dst []byte) *Element {
 // The DST must not be empty or nil, and is recommended to be longer than 16 bytes.
 func EncodeToGroup(input, dst []byte) *Element {
 	expLength := 1 * 1 * uint(secLength) // elements * ext * security length
-	uniform := hash2curve.ExpandXMD(crypto.SHA256, input, dst, expLength)
+	uniform := expandXMD(input, dst, expLength)
 	u0 := field.New().HashToFieldElement([secLength]byte(uniform[:secLength]))
 
 	return sswu(u0).isogenySecp256k13iso()
