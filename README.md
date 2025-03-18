@@ -1,5 +1,5 @@
 # secp256k1
-[![secp256k1](https://github.com/bytemare/secp256k1/actions/workflows/code-scan.yml/badge.svg)](https://github.com/bytemare/secp256k1/actions/workflows/code-scan.yml)
+[![secp256k1](https://github.com/bytemare/secp256k1/actions/workflows/wf-analysis.yml/badge.svg)](https://github.com/bytemare/secp256k1/actions/workflows/wf-analysis.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/bytemare/secp256k1.svg)](https://pkg.go.dev/github.com/bytemare/secp256k1)
 [![codecov](https://codecov.io/gh/bytemare/secp256k1/branch/main/graph/badge.svg?token=5bQfB0OctA)](https://codecov.io/gh/bytemare/secp256k1)
 
