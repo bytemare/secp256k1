@@ -27,6 +27,7 @@ func bytesToInts(out *NonMontgomeryDomainFieldElement, input [32]byte) {
 // bytesToNonMontgomery interprets input as a big-endian encoded integer returns the 64-bit saturated representation.
 func bytesToNonMontgomery(input [32]byte) *NonMontgomeryDomainFieldElement {
 	var out NonMontgomeryDomainFieldElement
+
 	bytesToInts(&out, input)
 
 	return &out
@@ -35,6 +36,7 @@ func bytesToNonMontgomery(input [32]byte) *NonMontgomeryDomainFieldElement {
 // nonMontgomeryToBytes returns the 32 byte big-endian encoding of the saturated representation of the field element.
 func nonMontgomeryToBytes(nm *NonMontgomeryDomainFieldElement) []byte {
 	var out [32]byte
+
 	binary.BigEndian.PutUint64(out[0:8], nm[3])
 	binary.BigEndian.PutUint64(out[8:16], nm[2])
 	binary.BigEndian.PutUint64(out[16:24], nm[1])

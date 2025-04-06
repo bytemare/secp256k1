@@ -24,32 +24,8 @@ const (
 	encodingPrefixUncompressed = 0x04
 )
 
-var (
-	// errParamInvalidPointEncoding indicates an invalid point encoding has been provided.
-	errParamInvalidPointEncoding = errors.New("invalid point encoding")
-
-	// b is 7 in Montgomery form.
-	b = field.Element{E: field.MontgomeryDomainFieldElement{30064777911, 0, 0, 0}}
-
-	// 0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798.
-	baseX = field.MontgomeryDomainFieldElement{
-		15507633332195041431,
-		2530505477788034779,
-		10925531211367256732,
-		11061375339145502536,
-	}
-
-	// 0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8.
-	baseY = field.MontgomeryDomainFieldElement{
-		12780836216951778274,
-		10231155108014310989,
-		8121878653926228278,
-		14933801261141951190,
-	}
-
-	// b3 is 3*b, i.e. 21, in the Montgomery form.
-	b3 = field.Element{E: field.MontgomeryDomainFieldElement{90194333733, 0, 0, 0}}
-)
+// errParamInvalidPointEncoding indicates an invalid point encoding has been provided.
+var errParamInvalidPointEncoding = errors.New("invalid point encoding")
 
 // Element implements the Element interface for the secp256k1 group element.
 type Element struct {
@@ -57,21 +33,24 @@ type Element struct {
 	x, y, z field.Element
 }
 
-var identity = Element{
+var identity = Element{ //nolint:gochecknoglobals // that's actually ok
 	x: *field.New(),
 	y: *field.New().One(),
 	z: *field.New(), // The Identity element is the only with z == 0
 }
 
+// newEmptyElement returns a new but invalid element, that is not the point at infinity.
+func newEmptyElement() *Element {
+	return &Element{
+		x: *field.New(),
+		y: *field.New(),
+		z: *field.New(),
+	}
+}
+
 // newElement returns a new element set to the point at infinity.
 func newElement() *Element {
-	e := &Element{
-		x: field.Element{},
-		y: field.Element{},
-		z: field.Element{},
-	}
-
-	return e.set(&identity)
+	return newEmptyElement().set(&identity)
 }
 
 // NewElement returns a new element set to the identity point.
@@ -82,7 +61,7 @@ func NewElement() *Element {
 // affine returns the affine (x,y) coordinates from the inner standard projective representation.
 func (e *Element) affine() *Element {
 	isZero := e.z.IsZero()
-	n := &Element{}
+	n := newEmptyElement()
 
 	n.z.Invert(e.z) // we can use n's z since we won't use it otherwise
 	n.x.Multiply(&n.z, &e.x)
@@ -95,9 +74,25 @@ func (e *Element) affine() *Element {
 
 // Base sets the element to the group's base point a.k.a. canonical generator.
 func (e *Element) Base() *Element {
+	// 0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798.
+	baseX := field.MontgomeryDomainFieldElement{
+		15507633332195041431,
+		2530505477788034779,
+		10925531211367256732,
+		11061375339145502536,
+	}
+
+	// 0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8.
+	baseY := field.MontgomeryDomainFieldElement{
+		12780836216951778274,
+		10231155108014310989,
+		8121878653926228278,
+		14933801261141951190,
+	}
+
 	copy(e.x.E[:], baseX[:])
 	copy(e.y.E[:], baseY[:])
-	e.z.Set(field.One)
+	e.z.Set(field.New().One())
 
 	return e
 }
@@ -124,7 +119,7 @@ func (e *Element) addAffine3Iso2(v *Element) *Element {
 	t0.Multiply(t0, l)      // l(x1-x3)
 	e.y.Subtract(t0, &v.y)  // y3 = l(x1-x3)-y1
 
-	// No need to set Z to 1 here because it won't be used before being set in isogenySecp256k13iso anyway.
+	// No need to set Z to 1 here because it won't be used before being set in IsogenySecp256k13iso anyway.
 
 	return e
 }
@@ -132,6 +127,9 @@ func (e *Element) addAffine3Iso2(v *Element) *Element {
 // addProjectiveComplete implements algorithm 7 from "Complete addition formulas for prime order elliptic curve"
 // by Joost Renes, Craig Costello, and Lejla Batina (https://eprint.iacr.org/2015/1060.pdf), for a cost of 12M+2m3b+19a.
 func (e *Element) addProjectiveComplete(u, v *Element) *Element {
+	// b3 is 3*b = 3*7 = 21, in the Montgomery form.
+	b3 := field.Element{E: field.MontgomeryDomainFieldElement{90194333733, 0, 0, 0}}
+
 	t0 := field.New().Multiply(&u.x, &v.x) // t0 := X1 * X2
 	t1 := field.New().Multiply(&u.y, &v.y) // t1 := Y1 * Y2
 	t2 := field.New().Multiply(&u.z, &v.z) // t2 := Z1 * Z2
@@ -197,6 +195,9 @@ func (e *Element) Add(element *Element) *Element {
 }
 
 func (e *Element) doubleProjectiveComplete(u *Element) *Element {
+	// b3 is 3*b = 3*7 = 21, in the Montgomery form.
+	b3 := field.Element{E: field.MontgomeryDomainFieldElement{90194333733, 0, 0, 0}}
+
 	t0 := field.New().Square(&u.y) // t0 := Y ^2
 	z3 := field.New().Add(t0, t0)  // Z3 := t0 + t0
 	z3.Add(z3, z3)                 // Z3 := Z3 + Z3
@@ -364,7 +365,7 @@ func (e *Element) EncodeUncompressed() []byte {
 // using this outlining saves an allocation...
 func (e *Element) fillUncompressed(in *[elementLengthUncompressed]byte) []byte {
 	affine := e.affine()
-	out := append(in[:0], encodingPrefixUncompressed) //nolint:gocritic,wsl
+	out := append(in[:0], encodingPrefixUncompressed) //nolint:gocritic
 	out = append(out, affine.x.Bytes()...)
 	out = append(out, affine.y.Bytes()...)
 
@@ -378,6 +379,9 @@ func (e *Element) XCoordinate() []byte {
 
 // Secp256Polynomial applies y^2=x^3+ax+b (with a = 0) to recover y^2 from x.
 func Secp256Polynomial(y, x *field.Element) {
+	// b is 7 in Montgomery form.
+	b := field.Element{E: field.MontgomeryDomainFieldElement{30064777911, 0, 0, 0}}
+
 	y.Square(x)
 	y.Multiply(y, x)
 	y.Add(y, &b)
@@ -436,7 +440,7 @@ func (e *Element) DecodeCompressed(data []byte) error {
 	var y2 field.Element
 	Secp256Polynomial(&y2, x)
 
-	y, isSquare := field.New().SqrtRatio(&y2, field.One)
+	y, isSquare := field.New().SqrtRatio(&y2, field.New().One())
 	if isSquare != 1 {
 		// Point is not on curve
 		return errParamInvalidPointEncoding

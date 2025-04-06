@@ -21,44 +21,22 @@ const (
 	scalarSize = 32
 )
 
-var (
-	// One is the scalar 1.
-	One = MontgomeryDomainFieldElement{4624529908474429119, 4994812053365940164, uint64(0x1), uint64(0x0)}
+// One returns the Scalar 1 in MontgomeryDomainFieldElement form.
+func One() *MontgomeryDomainFieldElement {
+	return &MontgomeryDomainFieldElement{4624529908474429119, 4994812053365940164, uint64(0x1), uint64(0x0)}
+}
 
-	// Order of the group: 2^256 - 432420386565659656852420866394968145599
-	// = 115792089237316195423570985008687907852837564279074904382605163141518161494337
-	// = xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141.
-	Order = MontgomeryDomainFieldElement{
+// Order returns a MontgomeryDomainFieldElement set to 2^256 - 432420386565659656852420866394968145599
+// = 115792089237316195423570985008687907852837564279074904382605163141518161494337
+// = xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141.
+func Order() *MontgomeryDomainFieldElement {
+	return &MontgomeryDomainFieldElement{
 		13822214165235122497,
 		13451932020343611451,
 		18446744073709551614,
 		18446744073709551615,
 	}
-
-	// OrderMinus1 is -1 = p-1.
-	OrderMinus1 = MontgomeryDomainFieldElement{
-		9197684256760693378,
-		8457119966977671287,
-		18446744073709551613,
-		18446744073709551615,
-	}
-
-	// 2^192 mod (2^256 - 432420386565659656852420866394968145599) in the Montgomery domain.
-	two192 = &MontgomeryDomainFieldElement{
-		10328527898029845308,
-		10739309058364017386,
-		11342065889886772165,
-		4624529908474429120,
-	}
-
-	// 2^384 mod (2^256 - 432420386565659656852420866394968145599) in the Montgomery domain.
-	two384 = &MontgomeryDomainFieldElement{
-		2161815027462274937,
-		647662477280039658,
-		2865435121925625427,
-		4330881270917637700,
-	}
-)
+}
 
 // Invert sets out = 1 / in.
 func Invert(out *MontgomeryDomainFieldElement, in MontgomeryDomainFieldElement) {
@@ -192,6 +170,7 @@ func ReduceBytes(out *MontgomeryDomainFieldElement, input [scalarSize]byte) uint
 func FromBytesNoReduce(out *MontgomeryDomainFieldElement, input []byte) {
 	// pad to 256 bits: input will always be smaller than the modulo, so no reduction needed.
 	var pad [scalarSize]byte
+
 	copy(pad[scalarSize-len(input):], input)
 
 	ToMontgomery(out, BytesToNonMontgomery(pad))
@@ -203,14 +182,30 @@ func FromBytesNoReduce(out *MontgomeryDomainFieldElement, input []byte) {
 // i.e. represent the value as a+b*2^192+c*2^384.
 func HashToFieldElement(out *MontgomeryDomainFieldElement, input [SecLength]byte) {
 	// We're dealing with a non-canonical form, so let's package it as such properly by extending to 64 bytes.
-	// 64 - secLength = 16
-	in := make([]byte, 16, 64)
-	in = append(in, input[:]...)
+	// 64 - SecLength = 16
+	in := append(make([]byte, 16, 64), input[:]...)
 
 	var _b, _c MontgomeryDomainFieldElement
+
 	FromBytesNoReduce(out, in[40:])
 	FromBytesNoReduce(&_b, in[16:40])
 	FromBytesNoReduce(&_c, in[:16])
+
+	// 2^192 mod (2^256 - 432420386565659656852420866394968145599) in the Montgomery domain.
+	two192 := &MontgomeryDomainFieldElement{
+		10328527898029845308,
+		10739309058364017386,
+		11342065889886772165,
+		4624529908474429120,
+	}
+
+	// 2^384 mod (2^256 - 432420386565659656852420866394968145599) in the Montgomery domain.
+	two384 := &MontgomeryDomainFieldElement{
+		2161815027462274937,
+		647662477280039658,
+		2865435121925625427,
+		4330881270917637700,
+	}
 
 	Mul(&_b, &_b, two192) // b*2^192
 	Mul(&_c, &_c, two384) // c*2^384
@@ -236,10 +231,12 @@ func Reduce(x *NonMontgomeryDomainFieldElement) uint64 {
 		borrow uint64
 		xMinP  [4]uint64
 	)
-	xMinP[0], borrow = bits.Sub64(x[0], Order[0], borrow)
-	xMinP[1], borrow = bits.Sub64(x[1], Order[1], borrow)
-	xMinP[2], borrow = bits.Sub64(x[2], Order[2], borrow)
-	xMinP[3], borrow = bits.Sub64(x[3], Order[3], borrow)
+
+	order := Order()
+	xMinP[0], borrow = bits.Sub64(x[0], order[0], borrow)
+	xMinP[1], borrow = bits.Sub64(x[1], order[1], borrow)
+	xMinP[2], borrow = bits.Sub64(x[2], order[2], borrow)
+	xMinP[3], borrow = bits.Sub64(x[3], order[3], borrow)
 
 	// If borrow == 0, x >= order, reduction needed
 	//	- mask is all zeros: select x - p
@@ -268,6 +265,7 @@ func BytesToNonMontgomery(input [32]byte) *NonMontgomeryDomainFieldElement {
 // NonMontgomeryToBytes returns the 32 byte big-endian encoding of the saturated representation of the field element.
 func NonMontgomeryToBytes(nm *NonMontgomeryDomainFieldElement) []byte {
 	var out [32]byte
+
 	binary.BigEndian.PutUint64(out[0:8], nm[3])
 	binary.BigEndian.PutUint64(out[8:16], nm[2])
 	binary.BigEndian.PutUint64(out[16:24], nm[1])

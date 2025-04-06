@@ -207,7 +207,7 @@ func TestScalar_One(t *testing.T) {
 
 func TestScalar_MinusOne(t *testing.T) {
 	expected := secp256k1.NewScalar()
-	scalar.Sub(&expected.S, &scalar.Order, &scalar.One)
+	scalar.Sub(&expected.S, scalar.Order(), scalar.One())
 
 	pMin1 := secp256k1.NewScalar().MinusOne()
 

@@ -10,8 +10,6 @@
 package secp256k1
 
 import (
-	"slices"
-
 	"github.com/bytemare/secp256k1/internal/field"
 	"github.com/bytemare/secp256k1/internal/scalar"
 )
@@ -29,14 +27,6 @@ const (
 	elementLengthUncompressed = 65
 	secLength                 = 48
 )
-
-// group order: 2^256 - 432420386565659656852420866394968145599
-// = 115792089237316195423570985008687907852837564279074904382605163141518161494337
-// = fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141.
-var groupOrderBytes = []byte{
-	255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 254,
-	186, 174, 220, 230, 175, 72, 160, 59, 191, 210, 94, 140, 208, 54, 65, 65,
-}
 
 // Base returns the group's base point a.k.a. canonical generator.
 func Base() *Element {
@@ -61,10 +51,10 @@ func HashToGroup(input, dst []byte) *Element {
 	uniform := expandXMD(input, dst, expLength)
 	u0 := field.New().HashToFieldElement([secLength]byte(uniform[:secLength]))
 	u1 := field.New().HashToFieldElement([secLength]byte(uniform[secLength : 2*secLength]))
-	q0 := sswu(u0)
-	q1 := sswu(u1)
+	q0 := SSWU(u0)
+	q1 := SSWU(u1)
 
-	return q0.addAffine3Iso2(q1).isogenySecp256k13iso()
+	return IsogenySecp256k13iso(q0.addAffine3Iso2(q1))
 }
 
 // EncodeToGroup returns a non-uniform mapping of the arbitrary input to an Element in the Group.
@@ -74,7 +64,7 @@ func EncodeToGroup(input, dst []byte) *Element {
 	uniform := expandXMD(input, dst, expLength)
 	u0 := field.New().HashToFieldElement([secLength]byte(uniform[:secLength]))
 
-	return sswu(u0).isogenySecp256k13iso()
+	return IsogenySecp256k13iso(SSWU(u0))
 }
 
 // Ciphersuite returns the hash-to-curve ciphersuite identifier.
@@ -94,5 +84,11 @@ func ElementLength() int {
 
 // Order returns the order of the canonical group of scalars.
 func Order() []byte {
-	return slices.Clone(groupOrderBytes)
+	// group order: 2^256 - 432420386565659656852420866394968145599
+	// = 115792089237316195423570985008687907852837564279074904382605163141518161494337
+	// = fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141.
+	return []byte{
+		255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 254,
+		186, 174, 220, 230, 175, 72, 160, 59, 191, 210, 94, 140, 208, 54, 65, 65,
+	}
 }
