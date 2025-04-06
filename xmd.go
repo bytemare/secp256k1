@@ -36,6 +36,7 @@ func checkDST(dst []byte) {
 
 func i2osp1(value uint) []byte {
 	var out [2]byte
+
 	binary.BigEndian.PutUint16(out[:], uint16(value))
 
 	return out[1:2]
@@ -43,6 +44,7 @@ func i2osp1(value uint) []byte {
 
 func i2osp2(value uint) []byte {
 	var out [2]byte
+
 	binary.BigEndian.PutUint16(out[:], uint16(value))
 
 	return out[:]
@@ -52,10 +54,10 @@ func i2osp2(value uint) []byte {
 func expandXMD(input, dst []byte, length uint) []byte {
 	checkDST(dst)
 
+	var zPad [64]byte // 64 is SHA256's block size
+
 	h := crypto.SHA256.New()
 	dst = vetDSTXMD(h, dst)
-
-	var zPad [64]byte // 64 is SHA256's block size
 	lib := i2osp2(length)
 
 	// Hash to b0

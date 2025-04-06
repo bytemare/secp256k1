@@ -8,13 +8,13 @@
 
 package secp256k1
 
-import (
-	"github.com/bytemare/secp256k1/internal/field"
-)
+import "github.com/bytemare/secp256k1/internal/field"
 
-var (
+// SSWU applies the Simplified Shallue-van de Woestijne-Ulas (SWU) method to map e to a point on the secp256k1 3-ISO
+// curve in affine coordinates. Note that calling IsogenySecp256k13iso() is necessary to then get a point on secpk256k1.
+func SSWU(e *field.Element) *Element {
 	// 0x3f8731abdd661adca08a5558f0f5d272e953d363cb6f0e5d405447c01a444533.
-	isoA = &field.Element{
+	isoA := &field.Element{
 		E: field.MontgomeryDomainFieldElement{
 			15812504324673914017,
 			4924912935180573090,
@@ -22,14 +22,12 @@ var (
 			5790129131709978969,
 		},
 	}
-
 	// 1771.
-	isoB = &field.Element{E: field.MontgomeryDomainFieldElement{7606388811483, 0, 0, 0}}
-
+	isoB := &field.Element{E: field.MontgomeryDomainFieldElement{7606388811483, 0, 0, 0}}
 	// z = -11
 	// - non-square in F, Z != -1 in F.
 	// The polynomial g(x) - Z is irreducible over F, and g(B / (Z * A)) is square in F.
-	z = &field.Element{
+	z := &field.Element{
 		E: field.MontgomeryDomainFieldElement{
 			18446744022169932340,
 			18446744073709551615,
@@ -38,101 +36,12 @@ var (
 		},
 	}
 
-	// _kx are the constants used in the 3-Isogeny Map for secp256k1, from RFC9380 Section E.1.
-	_k10 = &field.Element{E: field.MontgomeryDomainFieldElement{253880346804, 0, 0, 0}}
-	_k11 = &field.Element{
-		E: field.MontgomeryDomainFieldElement{
-			15401556054675218246,
-			3224699913824136141,
-			5815130584626317824,
-			16947662544290920057,
-		},
-	}
-	_k12 = &field.Element{
-		E: field.MontgomeryDomainFieldElement{
-			5242624389536649661,
-			6503044766135799011,
-			13715044361241875287,
-			702316956669180165,
-		},
-	}
-	_k13 = &field.Element{E: field.MontgomeryDomainFieldElement{477218697, 0, 0, 0}}
-	_k20 = &field.Element{
-		E: field.MontgomeryDomainFieldElement{
-			10013643957699995642,
-			13279921378413469365,
-			9434573195234168324,
-			14865030926825602763,
-		},
-	}
-	_k21 = &field.Element{
-		E: field.MontgomeryDomainFieldElement{
-			10290131358410743717,
-			3187170674093536253,
-			12754934808919567890,
-			6320852610022621491,
-		},
-	}
-	_k30 = &field.Element{
-		E: field.MontgomeryDomainFieldElement{
-			18446743860074648259,
-			18446744073709551615,
-			18446744073709551615,
-			18446744073709551615,
-		},
-	}
-	_k31 = &field.Element{
-		E: field.MontgomeryDomainFieldElement{
-			13429969373273428526,
-			5674984992785315314,
-			2875401403253613739,
-			12950111799174569234,
-		},
-	}
-	_k32 = &field.Element{
-		E: field.MontgomeryDomainFieldElement{
-			11844684229475616502,
-			12474894419922675313,
-			16080894217475713451,
-			9574530515189365890,
-		},
-	}
-	_k33 = &field.Element{E: field.MontgomeryDomainFieldElement{159072899, 0, 0, 0}}
-	_k40 = &field.Element{
-		E: field.MontgomeryDomainFieldElement{
-			18446740822418568955,
-			18446744073709551615,
-			18446744073709551615,
-			18446744073709551615,
-		},
-	}
-	_k41 = &field.Element{
-		E: field.MontgomeryDomainFieldElement{
-			11594187807980371856,
-			2946275987821304864,
-			9856975511992953358,
-			7701604633057705058,
-		},
-	}
-	_k42 = &field.Element{
-		E: field.MontgomeryDomainFieldElement{
-			6211825002908823904,
-			4780756011140304380,
-			9909030176524576027,
-			257906878179156429,
-		},
-	}
-)
-
-// sswu applies the Simplified Shallue-van de Woestijne-Ulas (SWU) method to map e to a point on the secp256k1 3-ISO
-// curve in affine coordinates. Note that calling isogenySecp256k13iso() is necessary to then get a point on secpk256k1.
-func sswu(e *field.Element) *Element {
-	tv1 := field.New().Square(e)           //    1.  tv1 = u^2
-	tv1.Multiply(z, tv1)                   //    2.  tv1 = Z * tv1
-	tv2 := field.New().Square(tv1)         //    3.  tv2 = tv1^2
-	tv2.Add(tv2, tv1)                      //    4.  tv2 = tv2 + tv1
-	tv3 := field.New().Add(tv2, field.One) //    5.  tv3 = tv2 + 1
-	tv3.Multiply(isoB, tv3)                //    6.  tv3 = B * tv3
+	tv1 := field.New().Square(e)                   //    1.  tv1 = u^2
+	tv1.Multiply(z, tv1)                           //    2.  tv1 = Z * tv1
+	tv2 := field.New().Square(tv1)                 //    3.  tv2 = tv1^2
+	tv2.Add(tv2, tv1)                              //    4.  tv2 = tv2 + tv1
+	tv3 := field.New().Add(tv2, field.New().One()) //    5.  tv3 = tv2 + 1
+	tv3.Multiply(isoB, tv3)                        //    6.  tv3 = B * tv3
 	tv2Zero := tv2.IsZero()
 	tv2.Negate(tv2)
 	tv4 := field.New().CMove(tv2Zero, tv2, z)          // 7.  tv4 = CMOV(Z, -tv2, tv2 != 0) or CMOV(-tv2, Z, tv2 == 0)
@@ -160,14 +69,100 @@ func sswu(e *field.Element) *Element {
 	return &Element{
 		x: *x,
 		y: *y,
-		z: *field.New().One(),
-		// No need to set Z here because it won't be used before being set in isogenySecp256k13iso anyway.
+		z: *field.New().One(), // No need to set Z here, it won't be used before being set in IsogenySecp256k13iso anyway.
 	}
 }
 
-// isogenySecp256k13iso is a 3-degree isogeny from secp256k1 3-ISO to the secp256k1 elliptic curve. It handles
+// IsogenySecp256k13iso is a 3-degree isogeny from secp256k1 3-ISO to the secp256k1 elliptic curve. It handles
 // exceptional cases where inversions to denominators evaluate to 0.
-func (e *Element) isogenySecp256k13iso() *Element {
+func IsogenySecp256k13iso(e *Element) *Element {
+	var (
+		// _kx are the constants used in the 3-Isogeny Map for secp256k1, from RFC9380 Section E.1.
+		_k10 = &field.Element{E: field.MontgomeryDomainFieldElement{253880346804, 0, 0, 0}}
+		_k11 = &field.Element{
+			E: field.MontgomeryDomainFieldElement{
+				15401556054675218246,
+				3224699913824136141,
+				5815130584626317824,
+				16947662544290920057,
+			},
+		}
+		_k12 = &field.Element{
+			E: field.MontgomeryDomainFieldElement{
+				5242624389536649661,
+				6503044766135799011,
+				13715044361241875287,
+				702316956669180165,
+			},
+		}
+		_k13 = &field.Element{E: field.MontgomeryDomainFieldElement{477218697, 0, 0, 0}}
+		_k20 = &field.Element{
+			E: field.MontgomeryDomainFieldElement{
+				10013643957699995642,
+				13279921378413469365,
+				9434573195234168324,
+				14865030926825602763,
+			},
+		}
+		_k21 = &field.Element{
+			E: field.MontgomeryDomainFieldElement{
+				10290131358410743717,
+				3187170674093536253,
+				12754934808919567890,
+				6320852610022621491,
+			},
+		}
+		_k30 = &field.Element{
+			E: field.MontgomeryDomainFieldElement{
+				18446743860074648259,
+				18446744073709551615,
+				18446744073709551615,
+				18446744073709551615,
+			},
+		}
+		_k31 = &field.Element{
+			E: field.MontgomeryDomainFieldElement{
+				13429969373273428526,
+				5674984992785315314,
+				2875401403253613739,
+				12950111799174569234,
+			},
+		}
+		_k32 = &field.Element{
+			E: field.MontgomeryDomainFieldElement{
+				11844684229475616502,
+				12474894419922675313,
+				16080894217475713451,
+				9574530515189365890,
+			},
+		}
+		_k33 = &field.Element{E: field.MontgomeryDomainFieldElement{159072899, 0, 0, 0}}
+		_k40 = &field.Element{
+			E: field.MontgomeryDomainFieldElement{
+				18446740822418568955,
+				18446744073709551615,
+				18446744073709551615,
+				18446744073709551615,
+			},
+		}
+		_k41 = &field.Element{
+			E: field.MontgomeryDomainFieldElement{
+				11594187807980371856,
+				2946275987821304864,
+				9856975511992953358,
+				7701604633057705058,
+			},
+		}
+		_k42 = &field.Element{
+			E: field.MontgomeryDomainFieldElement{
+				6211825002908823904,
+				4780756011140304380,
+				9909030176524576027,
+				257906878179156429,
+			},
+		}
+	)
+
 	x2 := field.New().Square(&e.x)
 	x3 := field.New().Multiply(x2, &e.x)
 
@@ -200,7 +195,7 @@ func (e *Element) isogenySecp256k13iso() *Element {
 	yDen.Add(yDen, _k40)
 	isIdentity |= yDen.IsZero()
 	yDen.Invert(*yDen)
-	// isIdentity |= yDen.IsZero()
+	// originally, we would do 'isIdentity |= yDen.IsZero()' here, but it doesn't work
 
 	// compose final point
 	e.x.Multiply(xNum, xDen)
@@ -208,9 +203,9 @@ func (e *Element) isogenySecp256k13iso() *Element {
 	e.y.Multiply(&e.y, yDen)
 
 	// If either denominator == 0, set to identity point.
-	e.x.CMove(isIdentity, &e.x, field.Zero)
-	e.y.CMove(isIdentity, &e.y, field.One)
-	e.z.CMove(isIdentity, field.One, field.Zero)
+	e.x.CMove(isIdentity, &e.x, field.New()) // field.New() is 0
+	e.y.CMove(isIdentity, &e.y, field.New().One())
+	e.z.CMove(isIdentity, field.New().One(), field.New()) // field.New() is 0
 
 	return e
 }

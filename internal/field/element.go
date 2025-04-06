@@ -18,29 +18,6 @@ const (
 	SecLength = 48
 )
 
-var (
-	// One is the element 1.
-	One = New().One()
-
-	// Zero is the element 0.
-	Zero = &Element{}
-
-	// c2 = sqrt(-z), z == 11.
-	c2 = &Element{
-		MontgomeryDomainFieldElement{
-			10660218062043021626,
-			12685808213265501903,
-			5194980534593283555,
-			4353995932822220413,
-		},
-	}
-
-	// field order: 2^256 - 2^32 - 977.
-	// = 115792089237316195423570985008687907853269984665640564039457584007908834671663.
-	// = 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f.
-	order = MontgomeryDomainFieldElement{0xfffffffefffffc2f, 0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff}
-)
-
 // An Element on the field.
 type Element struct {
 	E MontgomeryDomainFieldElement
@@ -48,7 +25,7 @@ type Element struct {
 
 // New returns a new, unset Element.
 func New() *Element {
-	return &Element{}
+	return &Element{E: MontgomeryDomainFieldElement{}}
 }
 
 // One sets the receiver to 1.
@@ -93,6 +70,16 @@ func (e *Element) Square(u *Element) *Element {
 // actually exists), and 0 otherwise.
 // This uses an optimized implementation sqrt_ratio_3mod4 RFC 9380 section F.2.1.2.
 func (e *Element) SqrtRatio(u, v *Element) (*Element, uint64) {
+	// c2 = sqrt(-z), z == 11.
+	c2 := &Element{
+		MontgomeryDomainFieldElement{
+			10660218062043021626,
+			12685808213265501903,
+			5194980534593283555,
+			4353995932822220413,
+		},
+	}
+
 	tv1 := New().Square(v)        // 1. tv1 = v^2
 	tv2 := New().Multiply(u, v)   // 2. tv2 = u * v
 	tv1.Multiply(tv1, tv2)        // 3. tv1 = tv1 * tv2
@@ -186,14 +173,6 @@ func (e *Element) FromBytesNoReduce(input []byte) *Element {
 	return e
 }
 
-var (
-	// 2^192 mod (2^256 - 2^32 - 977) in the Montgomery domain.
-	two192 = &MontgomeryDomainFieldElement{0, 0, 0, 4294968273}
-
-	// 2^384 mod (2^256 - 2^32 - 977) in the Montgomery domain.
-	two384 = &MontgomeryDomainFieldElement{0, 0, 8392367050913, 1}
-)
-
 // HashToFieldElement sets e to a field element from a 48-byte string obtained by ExpandXMD.
 // We use Frank Denis' trick, c.f. blog from Filippo: https://words.filippo.io/dispatches/wide-reduction
 // i.e. represent the value as a+b*2^192+c*2^384.
@@ -208,6 +187,14 @@ func (e *Element) HashToFieldElement(input [SecLength]byte) *Element {
 	e.FromBytesNoReduce(in[40:])
 	_b := New().FromBytesNoReduce(in[16:40])
 	_c := New().FromBytesNoReduce(in[:16])
+
+	var (
+		// 2^192 mod (2^256 - 2^32 - 977) in the Montgomery domain.
+		two192 = &MontgomeryDomainFieldElement{0, 0, 0, 4294968273}
+
+		// 2^384 mod (2^256 - 2^32 - 977) in the Montgomery domain.
+		two384 = &MontgomeryDomainFieldElement{0, 0, 8392367050913, 1}
+	)
 
 	Mul(&_b.E, &_b.E, two192) // b*2^192
 	Mul(&_c.E, &_c.E, two384) // c*2^384
@@ -240,10 +227,15 @@ func Reduce(x *NonMontgomeryDomainFieldElement) uint64 {
 		borrow uint64
 		xMinP  [4]uint64
 	)
-	xMinP[0], borrow = bits.Sub64(x[0], order[0], borrow)
-	xMinP[1], borrow = bits.Sub64(x[1], order[1], borrow)
-	xMinP[2], borrow = bits.Sub64(x[2], order[2], borrow)
-	xMinP[3], borrow = bits.Sub64(x[3], order[3], borrow)
+
+	// field order: 2^256 - 2^32 - 977.
+	// = 115792089237316195423570985008687907853269984665640564039457584007908834671663.
+	// = 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f.
+	// MontgomeryDomainFieldElement{0xfffffffefffffc2f, 0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff}
+	xMinP[0], borrow = bits.Sub64(x[0], 0xfffffffefffffc2f, borrow)
+	xMinP[1], borrow = bits.Sub64(x[1], 0xffffffffffffffff, borrow)
+	xMinP[2], borrow = bits.Sub64(x[2], 0xffffffffffffffff, borrow)
+	xMinP[3], borrow = bits.Sub64(x[3], 0xffffffffffffffff, borrow)
 
 	// If borrow == 0, x >= order, reduction needed
 	//	- mask is all zeros: select x - p

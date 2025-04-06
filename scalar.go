@@ -40,7 +40,7 @@ type Scalar struct {
 }
 
 func newScalar() *Scalar {
-	return &Scalar{}
+	return &Scalar{S: scalar.MontgomeryDomainFieldElement{}}
 }
 
 // NewScalar returns a new Scalar set to 0.
@@ -64,12 +64,13 @@ func (s *Scalar) One() *Scalar {
 	return s
 }
 
-// MinusOne sets the Scalar to order-1, and returns it.
+// MinusOne sets the Scalar to -1 = p-1, and returns it.
 func (s *Scalar) MinusOne() *Scalar {
-	s.S[0] = scalar.OrderMinus1[0]
-	s.S[1] = scalar.OrderMinus1[1]
-	s.S[2] = scalar.OrderMinus1[2]
-	s.S[3] = scalar.OrderMinus1[3]
+	// From the MontgomeryDomainFieldElement representation.
+	s.S[0] = 9197684256760693378
+	s.S[1] = 8457119966977671287
+	s.S[2] = 18446744073709551613
+	s.S[3] = 18446744073709551615
 
 	return s
 }
@@ -77,8 +78,10 @@ func (s *Scalar) MinusOne() *Scalar {
 // Random sets the current Scalar to a new random Scalar and returns it.
 // The random source is crypto/rand, and this functions is guaranteed to return a non-zero Scalar.
 func (s *Scalar) Random() *Scalar {
-	var buf [32]byte
-	var m scalar.MontgomeryDomainFieldElement
+	var (
+		buf [32]byte
+		m   scalar.MontgomeryDomainFieldElement
+	)
 
 	for scalar.IsFEZero(&m) == 1 {
 		_, err := io.ReadFull(rand.Reader, buf[:])
@@ -148,6 +151,7 @@ func (s *Scalar) Bits() [256]uint8 {
 		n   scalar.NonMontgomeryDomainFieldElement
 		out [256]uint8
 	)
+
 	scalar.FromMontgomery(&n, &s.S)
 
 	for i := range 255 {
@@ -187,27 +191,29 @@ func (s *Scalar) Pow(t *Scalar) *Scalar {
 	}
 
 	/*
-		s1 := new(Scalar).One()
-		s2 := s.Copy()
-		bits := t.Bits()
-		var i int
-		for i = 255; bits[i] == 0; i-- {
-		}
+		The following was an attempt for constant time, but for some reason it doesn't work.
 
-		for ; i >= 0; i-- {
-			if bits[i] == 0 {
-				s2.Multiply(s1)
-				s1.Square()
-			} else {
-				s1.Multiply(s2)
-				s2.Square()
+			s1 := new(Scalar).One()
+			s2 := s.Copy()
+			bits := t.Bits()
+			var i int
+			for i = 255; bits[i] == 0; i-- {
 			}
 
-		}
+			for ; i >= 0; i-- {
+				if bits[i] == 0 {
+					s2.Multiply(s1)
+					s1.Square()
+				} else {
+					s1.Multiply(s2)
+					s2.Square()
+				}
 
-		s.Set(s1)
+			}
 
-		return s
+			s.Set(s1)
+
+			return s
 
 	*/
 
@@ -247,7 +253,7 @@ func (s *Scalar) IsZero() bool {
 
 // IsOne returns whether s == 1.
 func (s *Scalar) IsOne() bool {
-	return scalar.Equal(&s.S, &scalar.One) == 1
+	return scalar.Equal(&s.S, scalar.One()) == 1
 }
 
 // Copy returns a copy of the receiver.
@@ -291,6 +297,7 @@ func (s *Scalar) CSelect(cond uint64, u, v *Scalar) error {
 // Encode returns the compressed byte encoding of the Scalar.
 func (s *Scalar) Encode() []byte {
 	var nm scalar.NonMontgomeryDomainFieldElement
+
 	scalar.FromMontgomery(&nm, &s.S)
 
 	return scalar.NonMontgomeryToBytes(&nm)
