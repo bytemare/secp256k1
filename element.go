@@ -58,20 +58,6 @@ func NewElement() *Element {
 	return newElement()
 }
 
-// affine returns the affine (x,y) coordinates from the inner standard projective representation.
-func (e *Element) affine() *Element {
-	isZero := e.z.IsZero()
-	n := newEmptyElement()
-
-	n.z.Invert(e.z) // we can use n's z since we won't use it otherwise
-	n.x.Multiply(&n.z, &e.x)
-	n.y.Multiply(&n.z, &e.y)
-	n.x.CMove(isZero, &n.x, &identity.x)
-	n.y.CMove(isZero, &n.y, &identity.y)
-
-	return n
-}
-
 // Base sets the element to the group's base point a.k.a. canonical generator.
 func (e *Element) Base() *Element {
 	// 0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798.
@@ -102,141 +88,14 @@ func (e *Element) Identity() *Element {
 	return e.set(&identity)
 }
 
-// addAffine3Iso sets e = v + e and returns p, using affine coordinates on secp256k1 3-ISO, useful to optimize the point
-// addition in map-to-curve. We use the generic add because the others are tailored for a = 0 and b = 7.
-// Setting e = v + e allows small optimisations using fewer variables and fewer copies.
-func (e *Element) addAffine3Iso2(v *Element) *Element {
-	t0 := field.New().Subtract(&e.y, &v.y) // (y2-y1)
-	l := field.New().Subtract(&e.x, &v.x)  // (x2-x1)
-	l.Invert(*l)                           // 1/(x2-x1)
-	l.Multiply(t0, l)                      // l = (y2-y1)/(x2-x1)
-
-	t0.Square(l)           // l^2
-	t0.Subtract(t0, &v.x)  // l^2-x1
-	e.x.Subtract(t0, &e.x) // x3 = l^2-x1-x2
-
-	t0.Subtract(&v.x, &e.x) // x1-x3
-	t0.Multiply(t0, l)      // l(x1-x3)
-	e.y.Subtract(t0, &v.y)  // y3 = l(x1-x3)-y1
-
-	// No need to set Z to 1 here because it won't be used before being set in IsogenySecp256k13iso anyway.
-
-	return e
-}
-
-// addProjectiveComplete implements algorithm 7 from "Complete addition formulas for prime order elliptic curve"
-// by Joost Renes, Craig Costello, and Lejla Batina (https://eprint.iacr.org/2015/1060.pdf), for a cost of 12M+2m3b+19a.
-func (e *Element) addProjectiveComplete(u, v *Element) *Element {
-	// b3 is 3*b = 3*7 = 21, in the Montgomery form.
-	b3 := field.Element{E: field.MontgomeryDomainFieldElement{90194333733, 0, 0, 0}}
-
-	t0 := field.New().Multiply(&u.x, &v.x) // t0 := X1 * X2
-	t1 := field.New().Multiply(&u.y, &v.y) // t1 := Y1 * Y2
-	t2 := field.New().Multiply(&u.z, &v.z) // t2 := Z1 * Z2
-
-	t3 := field.New().Add(&u.x, &u.y) // t3 := X1 + Y1
-	t4 := field.New().Add(&v.x, &v.y) // t4 := X2 + Y2
-	t3.Multiply(t3, t4)               // t3 := t3 * t4
-
-	t4.Add(t0, t1)      // t4 := t0 + t1
-	t3.Subtract(t3, t4) // t3 := t3 - t4
-	t4.Add(&u.y, &u.z)  // t4 := Y1 + Z1
-
-	x3 := field.New().Add(&v.y, &v.z) // X3 := Y2 + Z2
-	t4.Multiply(t4, x3)               // t4 := t4 * X3
-	x3.Add(t1, t2)                    // X3 := t1 + t2
-
-	t4.Subtract(t4, x3)               // t4 := t4 - X3
-	x3.Add(&u.x, &u.z)                // X3 := X1 + Z1
-	y3 := field.New().Add(&v.x, &v.z) // Y3 := X2 + Z2
-
-	x3.Multiply(x3, y3) // X3 := X3 * Y3
-	y3.Add(t0, t2)      // Y3 := t0 + t2
-	y3.Subtract(x3, y3) // Y3 := X3 - Y3
-
-	x3.Add(t0, t0)       // X3 := t0 + t0
-	t0.Add(x3, t0)       // t0 := X3 + t0
-	t2.Multiply(&b3, t2) // t2 := b3 * t2
-
-	z3 := field.New().Add(t1, t2) // Z3 := t1 + t2
-	t1.Subtract(t1, t2)           // t1 := t1 - t2
-	y3.Multiply(&b3, y3)          // Y3 := b3 * Y3
-
-	x3.Multiply(t4, y3) // X3 := t4 * Y3
-	t2.Multiply(t3, t1) // t2 := t3 * t1
-	x3.Subtract(t2, x3) // X3 := t2 - X3
-
-	y3.Multiply(y3, t0) // Y3 := Y3 * t0
-	t1.Multiply(t1, z3) // t1 := t1 * Z3
-	y3.Add(t1, y3)      // Y3 := t1 + Y3
-
-	t0.Multiply(t0, t3) // t0 := t0 * t3
-	z3.Multiply(z3, t4) // Z3 := Z3 * t4
-	z3.Add(z3, t0)      // Z3 := Z3 + t0
-
-	e.x.Set(x3)
-	e.y.Set(y3)
-	e.z.Set(z3)
-
-	return e
-}
-
-func (e *Element) add(element *Element) *Element {
-	if element == nil {
-		return e
-	}
-
-	return e.addProjectiveComplete(e, element)
-}
-
 // Add sets the receiver to the sum of the input and the receiver, and returns the receiver.
 func (e *Element) Add(element *Element) *Element {
 	return e.add(element)
 }
 
-func (e *Element) doubleProjectiveComplete(u *Element) *Element {
-	// b3 is 3*b = 3*7 = 21, in the Montgomery form.
-	b3 := field.Element{E: field.MontgomeryDomainFieldElement{90194333733, 0, 0, 0}}
-
-	t0 := field.New().Square(&u.y) // t0 := Y ^2
-	z3 := field.New().Add(t0, t0)  // Z3 := t0 + t0
-	z3.Add(z3, z3)                 // Z3 := Z3 + Z3
-
-	z3.Add(z3, z3)                         // Z3 := Z3 + Z3
-	t1 := field.New().Multiply(&u.y, &u.z) // t1 := Y * Z
-	t2 := field.New().Square(&u.z)         // t2 := Z ^2
-
-	t2.Multiply(&b3, t2)               // t2 := b3 * t2
-	x3 := field.New().Multiply(t2, z3) // X3 := t2 * Z3
-	y3 := field.New().Add(t0, t2)      // Y3 := t0 + t2
-
-	z3.Multiply(t1, z3) // Z3 := t1 * Z3
-	t1.Add(t2, t2)      // t1 := t2 + t2
-	t2.Add(t1, t2)      // t2 := t1 + t2
-
-	t0.Subtract(t0, t2) // t0 := t0 - t2
-	y3.Multiply(t0, y3) // Y3 := t0 * Y3
-	y3.Add(x3, y3)      // Y3 := X3 + Y3
-
-	t1.Multiply(&u.x, &u.y) // t1 := X * Y
-	x3.Multiply(t0, t1)     // X3 := t0 * t1
-	x3.Add(x3, x3)          // X3 := X3 + X3
-
-	e.x.Set(x3)
-	e.y.Set(y3)
-	e.z.Set(z3)
-
-	return e
-}
-
 // Double sets the receiver to its double, and returns it.
 func (e *Element) Double() *Element {
 	return e.doubleProjectiveComplete(e)
-}
-
-func (e *Element) negate() *Element {
-	e.y.Negate(&e.y)
-	return e
 }
 
 // Negate sets the receiver to its negation, and returns it.
@@ -259,14 +118,19 @@ func (e *Element) Subtract(element *Element) *Element {
 	return e.add(q)
 }
 
-func (e *Element) multiply(s *Scalar) *Element {
-	if s.IsOne() {
+// Multiply sets the receiver to the Scalar multiplication of the receiver with the given Scalar, and returns it.
+func (e *Element) Multiply(scalar *Scalar) *Element {
+	if scalar == nil {
+		return e.Identity()
+	}
+
+	if scalar.IsOne() {
 		return e
 	}
 
 	r0 := newElement()
 	r1 := e.copy()
-	bits := s.Bits()
+	bits := scalar.Bits()
 
 	for i := 255; i >= 0; i-- {
 		if bits[i] == 0 {
@@ -283,30 +147,6 @@ func (e *Element) multiply(s *Scalar) *Element {
 	return e
 }
 
-// Multiply sets the receiver to the Scalar multiplication of the receiver with the given Scalar, and returns it.
-func (e *Element) Multiply(scalar *Scalar) *Element {
-	if scalar == nil {
-		return e.Identity()
-	}
-
-	return e.multiply(scalar)
-}
-
-// Equal returns 1 if the elements are equivalent, and 0 otherwise.
-//
-// We verify whether the scales provided by the Zs represent the same point.
-func (e *Element) isEqual(u *Element) int {
-	// x
-	x1z2 := field.New().Multiply(&e.x, &u.z)
-	x2z1 := field.New().Multiply(&u.x, &e.z)
-
-	// y
-	y1z2 := field.New().Multiply(&e.y, &u.z)
-	y2z1 := field.New().Multiply(&u.y, &e.z)
-
-	return int(x1z2.Equals(x2z1) & y1z2.Equals(y2z1))
-}
-
 // Equal returns 1 if the elements are equivalent, and 0 otherwise.
 func (e *Element) Equal(element *Element) int {
 	return e.isEqual(element)
@@ -317,25 +157,9 @@ func (e *Element) IsIdentity() bool {
 	return e.z.IsZero() != 0
 }
 
-func (e *Element) set(element *Element) *Element {
-	e.x.Set(&element.x)
-	e.y.Set(&element.y)
-	e.z.Set(&element.z)
-
-	return e
-}
-
 // Set sets the receiver to the value of the argument, and returns the receiver.
 func (e *Element) Set(element *Element) *Element {
 	return e.set(element)
-}
-
-func (e *Element) copy() *Element {
-	return &Element{
-		x: *field.New().Set(&e.x),
-		y: *field.New().Set(&e.y),
-		z: *field.New().Set(&e.z),
-	}
 }
 
 // Copy returns a copy of the receiver.
@@ -360,16 +184,6 @@ func (e *Element) Encode() []byte {
 func (e *Element) EncodeUncompressed() []byte {
 	var out [elementLengthUncompressed]byte
 	return e.fillUncompressed(&out)
-}
-
-// using this outlining saves an allocation...
-func (e *Element) fillUncompressed(in *[elementLengthUncompressed]byte) []byte {
-	affine := e.affine()
-	out := append(in[:0], encodingPrefixUncompressed) //nolint:gocritic
-	out = append(out, affine.x.Bytes()...)
-	out = append(out, affine.y.Bytes()...)
-
-	return out
 }
 
 // XCoordinate returns the encoded x coordinate of the element, which is the same as Encode() without the header.
@@ -513,4 +327,186 @@ func (e *Element) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary sets e to the decoding of the byte encoded element.
 func (e *Element) UnmarshalBinary(data []byte) error {
 	return e.Decode(data)
+}
+
+func (e *Element) negate() *Element {
+	e.y.Negate(&e.y)
+	return e
+}
+
+// Equal returns 1 if the elements are equivalent, and 0 otherwise.
+//
+// We verify whether the scales provided by the Zs represent the same point.
+func (e *Element) isEqual(u *Element) int {
+	// x
+	x1z2 := field.New().Multiply(&e.x, &u.z)
+	x2z1 := field.New().Multiply(&u.x, &e.z)
+
+	// y
+	y1z2 := field.New().Multiply(&e.y, &u.z)
+	y2z1 := field.New().Multiply(&u.y, &e.z)
+
+	return int(x1z2.Equals(x2z1) & y1z2.Equals(y2z1))
+}
+
+func (e *Element) copy() *Element {
+	return &Element{
+		x: *field.New().Set(&e.x),
+		y: *field.New().Set(&e.y),
+		z: *field.New().Set(&e.z),
+	}
+}
+
+func (e *Element) set(element *Element) *Element {
+	e.x.Set(&element.x)
+	e.y.Set(&element.y)
+	e.z.Set(&element.z)
+
+	return e
+}
+
+// using this outlining saves an allocation...
+func (e *Element) fillUncompressed(in *[elementLengthUncompressed]byte) []byte {
+	affine := e.affine()
+	out := append(in[:0], encodingPrefixUncompressed) //nolint:gocritic
+	out = append(out, affine.x.Bytes()...)
+	out = append(out, affine.y.Bytes()...)
+
+	return out
+}
+
+func (e *Element) doubleProjectiveComplete(u *Element) *Element {
+	// b3 is 3*b = 3*7 = 21, in the Montgomery form.
+	b3 := field.Element{E: field.MontgomeryDomainFieldElement{90194333733, 0, 0, 0}}
+
+	t0 := field.New().Square(&u.y) // t0 := Y ^2
+	z3 := field.New().Add(t0, t0)  // Z3 := t0 + t0
+	z3.Add(z3, z3)                 // Z3 := Z3 + Z3
+
+	z3.Add(z3, z3)                         // Z3 := Z3 + Z3
+	t1 := field.New().Multiply(&u.y, &u.z) // t1 := Y * Z
+	t2 := field.New().Square(&u.z)         // t2 := Z ^2
+
+	t2.Multiply(&b3, t2)               // t2 := b3 * t2
+	x3 := field.New().Multiply(t2, z3) // X3 := t2 * Z3
+	y3 := field.New().Add(t0, t2)      // Y3 := t0 + t2
+
+	z3.Multiply(t1, z3) // Z3 := t1 * Z3
+	t1.Add(t2, t2)      // t1 := t2 + t2
+	t2.Add(t1, t2)      // t2 := t1 + t2
+
+	t0.Subtract(t0, t2) // t0 := t0 - t2
+	y3.Multiply(t0, y3) // Y3 := t0 * Y3
+	y3.Add(x3, y3)      // Y3 := X3 + Y3
+
+	t1.Multiply(&u.x, &u.y) // t1 := X * Y
+	x3.Multiply(t0, t1)     // X3 := t0 * t1
+	x3.Add(x3, x3)          // X3 := X3 + X3
+
+	e.x.Set(x3)
+	e.y.Set(y3)
+	e.z.Set(z3)
+
+	return e
+}
+
+// affine returns the affine (x,y) coordinates from the inner standard projective representation.
+func (e *Element) affine() *Element {
+	isZero := e.z.IsZero()
+	n := newEmptyElement()
+
+	n.z.Invert(e.z) // we can use n's z since we won't use it otherwise
+	n.x.Multiply(&n.z, &e.x)
+	n.y.Multiply(&n.z, &e.y)
+	n.x.CMove(isZero, &n.x, &identity.x)
+	n.y.CMove(isZero, &n.y, &identity.y)
+
+	return n
+}
+
+// addAffine3Iso sets e = v + e and returns p, using affine coordinates on secp256k1 3-ISO, useful to optimize the point
+// addition in map-to-curve. We use the generic add because the others are tailored for a = 0 and b = 7.
+// Setting e = v + e allows small optimisations using fewer variables and fewer copies.
+func (e *Element) addAffine3Iso2(v *Element) *Element {
+	t0 := field.New().Subtract(&e.y, &v.y) // (y2-y1)
+	l := field.New().Subtract(&e.x, &v.x)  // (x2-x1)
+	l.Invert(*l)                           // 1/(x2-x1)
+	l.Multiply(t0, l)                      // l = (y2-y1)/(x2-x1)
+
+	t0.Square(l)           // l^2
+	t0.Subtract(t0, &v.x)  // l^2-x1
+	e.x.Subtract(t0, &e.x) // x3 = l^2-x1-x2
+
+	t0.Subtract(&v.x, &e.x) // x1-x3
+	t0.Multiply(t0, l)      // l(x1-x3)
+	e.y.Subtract(t0, &v.y)  // y3 = l(x1-x3)-y1
+
+	// No need to set Z to 1 here because it won't be used before being set in IsogenySecp256k13iso anyway.
+
+	return e
+}
+
+// addProjectiveComplete implements algorithm 7 from "Complete addition formulas for prime order elliptic curve"
+// by Joost Renes, Craig Costello, and Lejla Batina (https://eprint.iacr.org/2015/1060.pdf), for a cost of 12M+2m3b+19a.
+func (e *Element) addProjectiveComplete(u, v *Element) *Element {
+	// b3 is 3*b = 3*7 = 21, in the Montgomery form.
+	b3 := field.Element{E: field.MontgomeryDomainFieldElement{90194333733, 0, 0, 0}}
+
+	t0 := field.New().Multiply(&u.x, &v.x) // t0 := X1 * X2
+	t1 := field.New().Multiply(&u.y, &v.y) // t1 := Y1 * Y2
+	t2 := field.New().Multiply(&u.z, &v.z) // t2 := Z1 * Z2
+
+	t3 := field.New().Add(&u.x, &u.y) // t3 := X1 + Y1
+	t4 := field.New().Add(&v.x, &v.y) // t4 := X2 + Y2
+	t3.Multiply(t3, t4)               // t3 := t3 * t4
+
+	t4.Add(t0, t1)      // t4 := t0 + t1
+	t3.Subtract(t3, t4) // t3 := t3 - t4
+	t4.Add(&u.y, &u.z)  // t4 := Y1 + Z1
+
+	x3 := field.New().Add(&v.y, &v.z) // X3 := Y2 + Z2
+	t4.Multiply(t4, x3)               // t4 := t4 * X3
+	x3.Add(t1, t2)                    // X3 := t1 + t2
+
+	t4.Subtract(t4, x3)               // t4 := t4 - X3
+	x3.Add(&u.x, &u.z)                // X3 := X1 + Z1
+	y3 := field.New().Add(&v.x, &v.z) // Y3 := X2 + Z2
+
+	x3.Multiply(x3, y3) // X3 := X3 * Y3
+	y3.Add(t0, t2)      // Y3 := t0 + t2
+	y3.Subtract(x3, y3) // Y3 := X3 - Y3
+
+	x3.Add(t0, t0)       // X3 := t0 + t0
+	t0.Add(x3, t0)       // t0 := X3 + t0
+	t2.Multiply(&b3, t2) // t2 := b3 * t2
+
+	z3 := field.New().Add(t1, t2) // Z3 := t1 + t2
+	t1.Subtract(t1, t2)           // t1 := t1 - t2
+	y3.Multiply(&b3, y3)          // Y3 := b3 * Y3
+
+	x3.Multiply(t4, y3) // X3 := t4 * Y3
+	t2.Multiply(t3, t1) // t2 := t3 * t1
+	x3.Subtract(t2, x3) // X3 := t2 - X3
+
+	y3.Multiply(y3, t0) // Y3 := Y3 * t0
+	t1.Multiply(t1, z3) // t1 := t1 * Z3
+	y3.Add(t1, y3)      // Y3 := t1 + Y3
+
+	t0.Multiply(t0, t3) // t0 := t0 * t3
+	z3.Multiply(z3, t4) // Z3 := Z3 * t4
+	z3.Add(z3, t0)      // Z3 := Z3 + t0
+
+	e.x.Set(x3)
+	e.y.Set(y3)
+	e.z.Set(z3)
+
+	return e
+}
+
+func (e *Element) add(element *Element) *Element {
+	if element == nil {
+		return e
+	}
+
+	return e.addProjectiveComplete(e, element)
 }
