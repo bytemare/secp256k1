@@ -261,11 +261,6 @@ func (s *Scalar) Copy() *Scalar {
 	return newScalar().Set(s)
 }
 
-func (s *Scalar) set(t *scalar.MontgomeryDomainFieldElement) *Scalar {
-	copy(s.S[:], t[:])
-	return s
-}
-
 // Set sets the receiver to the value of the argument Scalar, and returns the receiver.
 func (s *Scalar) Set(t *Scalar) *Scalar {
 	if t == nil {
@@ -344,4 +339,9 @@ func (s *Scalar) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary sets e to the decoding of the byte encoded Scalar.
 func (s *Scalar) UnmarshalBinary(data []byte) error {
 	return s.Decode(data)
+}
+
+func (s *Scalar) set(t *scalar.MontgomeryDomainFieldElement) *Scalar {
+	copy(s.S[:], t[:])
+	return s
 }
