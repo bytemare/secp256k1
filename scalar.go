@@ -154,7 +154,7 @@ func (s *Scalar) Bits() [256]uint8 {
 
 	scalar.FromMontgomery(&n, &s.S)
 
-	for i := range 255 {
+	for i := range 256 {
 		out[i] = uint8((n[i/64] >> (i % 64)) & 1)
 	}
 
