@@ -541,6 +541,32 @@ func TestScalar_HashToScalar_NoDST(t *testing.T) {
 	}
 }
 
+func TestScalarBitsMSB(t *testing.T) {
+	// Define the scalar with only the MSB set: 0x8000...0000
+	scalarBytes := [32]byte{}
+	scalarBytes[0] = 0x80 // Set the MSB (bit 255)
+
+	// Initialize the scalar
+	s := secp256k1.NewScalar()
+	if err := s.Decode(scalarBytes[:]); err != nil {
+		t.Fatalf("Failed to set scalar bytes: %v", err)
+	}
+
+	// Get the bit representation
+	bits := s.Bits()
+
+	// Verify that only the MSB is set
+	for i := 0; i < 256; i++ {
+		expected := uint8(0)
+		if i == 255 {
+			expected = 1
+		}
+		if bits[i] != expected {
+			t.Errorf("Bit %d: expected %d, got %d", i, expected, bits[i])
+		}
+	}
+}
+
 var (
 	errNoPanic        = errors.New("no panic")
 	errNoPanicMessage = errors.New("panic but no message")
