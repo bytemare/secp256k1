@@ -1,0 +1,28 @@
+# Releasing
+
+This project publishes Go modules following Semantic Versioning. Releases are coordinated via GitHub pull requests and automated workflows.
+
+## Release Checklist
+
+1. **Plan the version**: Determine the next SemVer tag (`vMAJOR.MINOR.PATCH`) and open or update an issue/PR describing notable changes.
+
+2. **Update documentation**: Add release notes to [CHANGELOG.md](../CHANGELOG.md) under a new version heading, move entries from `[Unreleased]` to the new version section, and verify README snippets and policy docs still apply.
+
+3. **Run validation locally**: Run the validation suite as described in [CONTRIBUTING.md §5](../.github/CONTRIBUTING.md#5-quality-checks).
+
+4. **Tag and publish a new release**: Run `make -C .github release tag=vX.Y.Z`.
+
+5. **Let automation publish artifacts**: Pushing the tag triggers `.github/workflows/wf-release.yaml`.
+  The workflow builds a source archive, generates a CycloneDX SBOM, records checksums,
+  and uploads an SBOM attestation.
+  A reusable SLSA provenance job attaches the provenance bundle to the release.
+  Monitor the workflow run for success and confirm that the release contains the tarball,
+  SBOM, VSA, and provenance `.intoto.jsonl` assets.
+
+6. **Publish notes**: If the automated release does not include human-readable notes, edit the GitHub release, paste the `CHANGELOG.md` entry, and save.
+
+7. **Post-release follow-up**: Announce the release in the relevant issue or discussion, then triage any downstream reports and start planning the next iteration.
+
+## Emergency Releases
+
+For high-severity security issues, coordinate privately via the process in [.github/SECURITY.md](../.github/SECURITY.md). Patch branches should include only the minimal changes required to resolve the issue.
