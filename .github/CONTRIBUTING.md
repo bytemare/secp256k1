@@ -1,34 +1,72 @@
-# How to contribute
+# Contributing
 
-### Did you find a bug? 🐞
+Thanks for investing time in improving this module! Pair this workflow guide with the technical guidance in [docs/architecture_and_guidelines.md](../docs/architecture_and_guidelines.md) and the security rationale in [docs/security_model.md](../docs/security_model.md).
 
-* 🔎 Please ensure your findings have not already been reported by searching on the project repository under [Issues](https://github.com/bytemare/secp256k1).
-* If you think your findings can be complementary to an existing issue, don't hesitate to join the conversation 😃☕
-* If there's no issue addressing the problem, [open a new one](https://github.com/bytemare/secp256k1/issues/new). Please be clear in the title and description, and add relevant information. Bonus points if you provide a **code sample** and everything needed to reproduce the issue when expected behaviour is not occurring.
-* If possible, use the relevant issue templates.
+## 1. Before You Start
 
-### Do you have a fix?
+- Review the [Code of Conduct](CODE_OF_CONDUCT.md). Participating implies acceptance of its terms.
+- Search existing [issues](https://github.com/bytemare/secp256k1/issues) and pull requests to avoid duplicating work. For substantial or breaking changes, open an issue first so we can agree on scope.
+- Familiarize yourself with the architecture and testing expectations in the documents linked above.
 
-🎉 That's awesome! Pull requests are welcome!
+## 2. Development Environment
 
-* Please [open an issue](https://github.com/bytemare/secp256k1) beforehand, so we can discuss this.
-* Fork this repo from `main`, and ensure your fork is up-to-date with it when submitting the PR.
-* If your changes impact the documentation, please update it accordingly.
-* If you added code that impact tests, please add tests with relevant coverage and test cases. Bonus points for fuzzing.
-* 🛠️ Make sure the test suite passes.
+- One of the three latest Go versions (CI runs the current stable toolchain and the two previous releases).
+- `git`, `make`, and a POSIX-compatible shell.
+- Optional tools used by CI (installed automatically in workflows but helpful locally): `golangci-lint`, `govulncheck`, and other tooling you can install with `make update-linters`.
 
-If your changes might have an impact on performance, please benchmark your code and measure the impact, share the results and the tests that lead to these results.
+## 3. Workflow and Branching
 
-Please note that changes that are purely cosmetic and do not add anything substantial to the stability, functionality, or testability of the project may not be accepted.
+1. Fork the repository and create topic branches from `main` (for example `feat/curve25519-support`, `docs/security-refresh`).
+2. Keep changes focused. Separate refactors, dependency bumps, and feature work into distinct pull requests.
+3. Reference related issues in your branch description or pull request.
 
-### Coding Convention
+## 4. Commit Standards
 
-This project tries to be as Go idiomatic as possible. Conventions from [Effective Go](https://golang.org/doc/effective_go) apply here. Tests use a very opinionated linting configuration that you should use before committing to your changes.
+- Follow [Conventional Commits](https://www.conventionalcommits.org/) for clear history (`feat:`, `fix:`, `docs:`, `test:`, `chore:` and so on).
+- Every commit must include a `Signed-off-by` trailer to satisfy the [Developer Certificate of Origin](https://developercertificate.org/). Use `git commit -s` to add it automatically.
+- Commit only what you have built and tested locally. Avoid large unrelated changes in a single commit.
+- Sign your commits using GPG or SSH.
 
-### Licence
+## 5. Quality Checks
 
-By contributing to this project, you agree that your contributions will be licensed under the project's [License](https://github.com/bytemare/template/blob/main/LICENSE).
+1. Run the paved commands before pushing:
+  ```bash
+  make -C .github lint vulncheck test cover fuzz
+  ```
+  These targets mirror the CI tests (golangci-lint, `go test`, fuzzing, `govulncheck`, etc.).
+2. Ensure `go mod tidy` produces no diff and that coverage does not regress meaningfully. If coverage drops, explain why in the pull request.
+3. Update documentation when behaviour or APIs change. Architecture or security changes should be reflected in the relevant `docs/` files.
+4. **For user-facing changes**, add an entry to [CHANGELOG.md](../CHANGELOG.md) under `[Unreleased]` describing what changed.
 
-All contributions (including pull requests) must agree to the [Developer Certificate of Origin (DCO) version 1.1](http://developercertificate.org). It states that the contributor has the right to submit the patch for inclusion into the project. Simply submitting a contribution implies this agreement, however, please include the "Signed-off-by" git tag in every commit (this tag is a conventional way to confirm that you agree to the DCO).
+## 6. Opening a Pull Request
 
-Thanks! :heart:
+1. Push your branch and open a PR against `main`.
+2. Fill out the pull request template, including the commands you ran and any follow-up tasks.
+3. Keep the description focused on why the change is necessary and what risks were considered. Link issues or discussions for additional context.
+4. If the change affects documentation, link to the updated files in the PR body so reviewers can verify rendering quickly.
+
+## 7. Review Expectations
+
+- Expect at least one maintainer review. Response times are usually within a few business days. Comment if you need a quicker turnaround.
+- Be responsive to feedback. If discussion stalls, summarise remaining concerns so the maintainer can make a decision.
+- Maintainers may close stale PRs after reasonable attempts to coordinate.
+
+## 8. Issue Guidance
+
+- Include reproduction steps, expected versus actual behaviour, and environment details (Go version, OS/arch).
+- For vulnerabilities, follow the process in [SECURITY.md](SECURITY.md) rather than opening a public issue.
+- Feature requests should describe the use case and, when possible, sketch the desired API.
+
+## 9. Releases and Post-Merge Tasks
+
+- Maintainers follow the process in [docs/releasing.md](../docs/releasing.md). Contributors assisting with release notes should provide changelog entries and highlight migration steps.
+- After a change lands, watch for CI status and respond quickly if regressions are reported by downstream users.
+
+## 10. Further Reading
+
+- Security model and assurance case: [docs/security_model.md](../docs/security_model.md)
+- Architecture and engineering guidelines: [docs/architecture_and_guidelines.md](../docs/architecture_and_guidelines.md)
+- Governance model: [docs/governance.md](../docs/governance.md)
+- Roadmap and open initiatives: [docs/roadmap.md](../docs/roadmap.md)
+
+Thank you for helping keep `secp256k1` reliable and secure!
