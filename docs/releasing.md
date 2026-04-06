@@ -1,28 +1,43 @@
 # Releasing
 
-This project publishes Go modules following Semantic Versioning. Releases are coordinated via GitHub pull requests and automated workflows.
+This project publishes the `github.com/bytemare/secp256k1` Go module following Semantic Versioning. Releases are coordinated through Git tags and GitHub Actions workflows defined in this repository.
 
 ## Release Checklist
 
-1. **Plan the version**: Determine the next SemVer tag (`vMAJOR.MINOR.PATCH`) and open or update an issue/PR describing notable changes.
+1. **Plan the version**
+   - Determine the next SemVer tag (`vMAJOR.MINOR.PATCH`).
+   - Open or update an issue/PR describing notable changes and migration impact (if any).
 
-2. **Update documentation**: Add release notes to [CHANGELOG.md](../CHANGELOG.md) under a new version heading, move entries from `[Unreleased]` to the new version section, and verify README snippets and policy docs still apply.
+2. **Update documentation**
+   - Add release notes to [CHANGELOG.md](../CHANGELOG.md) under a new version heading.
+   - Move entries from `[Unreleased]` to the new version section.
+   - Verify README examples and policy docs (`docs/security_model.md`, `docs/architecture_and_guidelines.md`) still apply.
 
-3. **Run validation locally**: Run the validation suite as described in [CONTRIBUTING.md §5](../.github/CONTRIBUTING.md#5-quality-checks).
+3. **Run validation locally**
 
-4. **Tag and publish a new release**: Run `make -C .github release tag=vX.Y.Z`.
+   Run the validation suite as described in [CONTRIBUTING.md §5](../.github/CONTRIBUTING.md#5-quality-checks).
 
-5. **Let automation publish artifacts**: Pushing the tag triggers `.github/workflows/wf-release.yaml`.
-  The workflow builds a source archive, generates a CycloneDX SBOM, records checksums,
-  and uploads an SBOM attestation.
-  A reusable SLSA provenance job attaches the provenance bundle to the release.
-  Monitor the workflow run for success and confirm that the release contains the tarball,
-  SBOM, VSA, and provenance `.intoto.jsonl` assets.
+4. **Tag and publish a new release**
 
-6. **Publish notes**: If the automated release does not include human-readable notes, edit the GitHub release, paste the `CHANGELOG.md` entry, and save.
+   ```bash
+   make -C .github release tag=vX.Y.Z
+   ```
 
-7. **Post-release follow-up**: Announce the release in the relevant issue or discussion, then triage any downstream reports and start planning the next iteration.
+   The `.github/Makefile` release target creates a signed annotated tag and pushes it.
+
+5. **Let automation publish artifacts**
+   - Pushing the tag triggers `.github/workflows/wf-release.yaml`.
+   - The release workflow delegates to a pinned reusable `bytemare/slsa` workflow.
+   - The exact artifact/attestation set is defined by that pinned reusable workflow version. Review the workflow run logs and the GitHub release assets to confirm they match current project policy.
+   - If needed, run `.github/workflows/wf-verify.yaml` manually to verify a tagged release using the pinned reusable verification workflow.
+
+6. **Publish notes**
+   - If the automated release does not include human-readable notes, edit the GitHub release and paste the corresponding `CHANGELOG.md` entry.
+
+7. **Post-release follow-up**
+   - Announce the release in the relevant issue/discussion.
+   - Triage downstream reports quickly and start planning the next iteration.
 
 ## Emergency Releases
 
-For high-severity security issues, coordinate privately via the process in [.github/SECURITY.md](../.github/SECURITY.md). Patch branches should include only the minimal changes required to resolve the issue.
+For high-severity security issues, coordinate privately via the process in [SECURITY.md](../.github/SECURITY.md). Patch releases should include only the minimal changes required to resolve the issue.

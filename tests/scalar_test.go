@@ -15,11 +15,45 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"math/rand"
 	"testing"
 
 	"github.com/bytemare/secp256k1"
 	"github.com/bytemare/secp256k1/internal/scalar"
 )
+
+func scalarOrderInt() *big.Int {
+	return new(big.Int).SetBytes(secp256k1.Order())
+}
+
+func scalarBytes(i *big.Int) []byte {
+	out := make([]byte, scalarLength)
+	if i == nil {
+		return out
+	}
+
+	i.FillBytes(out)
+
+	return out
+}
+
+func reducedScalarBytes(input []byte) []byte {
+	reduced := new(big.Int).SetBytes(input)
+	reduced.Mod(reduced, scalarOrderInt())
+
+	return scalarBytes(reduced)
+}
+
+func mustDecodeScalarBytes(t *testing.T, input []byte) *secp256k1.Scalar {
+	t.Helper()
+
+	s := secp256k1.NewScalar()
+	if err := s.Decode(input); err != nil {
+		t.Fatal(err)
+	}
+
+	return s
+}
 
 func testScalarCopySet(t *testing.T, scalar, other *secp256k1.Scalar) {
 	// Verify they don't point to the same thing
@@ -49,18 +83,21 @@ func testScalarCopySet(t *testing.T, scalar, other *secp256k1.Scalar) {
 	}
 }
 
+// TestScalar_Copy verifies Copy returns an equivalent scalar with independent state.
 func TestScalar_Copy(t *testing.T) {
 	random := secp256k1.NewScalar().Random()
 	cpy := random.Copy()
 	testScalarCopySet(t, random, cpy)
 }
 
+// TestScalar_Set verifies Set copies a scalar value without aliasing state.
 func TestScalar_Set(t *testing.T) {
 	random := secp256k1.NewScalar().Random()
 	other := secp256k1.NewScalar().Set(random)
 	testScalarCopySet(t, random, other)
 }
 
+// TestScalar_NonComparable verifies scalars cannot be meaningfully compared as Go values.
 func TestScalar_NonComparable(t *testing.T) {
 	random1 := secp256k1.NewScalar().Random()
 	random2 := secp256k1.NewScalar().Set(random1)
@@ -69,6 +106,7 @@ func TestScalar_NonComparable(t *testing.T) {
 	}
 }
 
+// TestScalar_SetUInt64 verifies SetUInt64 maps small integers as expected.
 func TestScalar_SetUInt64(t *testing.T) {
 	s := secp256k1.NewScalar().SetUInt64(0)
 	if !s.IsZero() {
@@ -81,6 +119,7 @@ func TestScalar_SetUInt64(t *testing.T) {
 	}
 }
 
+// TestScalar_CSelect verifies constant-time selection and nil-input errors.
 func TestScalar_CSelect(t *testing.T) {
 	a, b := secp256k1.NewScalar().Random(), secp256k1.NewScalar().Random()
 
@@ -116,6 +155,7 @@ func TestScalar_CSelect(t *testing.T) {
 	}
 }
 
+// TestScalar_EncodedLength verifies encoded scalars are always 32 bytes long.
 func TestScalar_EncodedLength(t *testing.T) {
 	encodedScalar := secp256k1.NewScalar().Random().Encode()
 	if len(encodedScalar) != scalarLength {
@@ -127,6 +167,7 @@ func TestScalar_EncodedLength(t *testing.T) {
 	}
 }
 
+// TestScalar_Decode_nil verifies Decode rejects nil and empty input.
 func TestScalar_Decode_nil(t *testing.T) {
 	expected := errors.New("nil or empty scalar")
 	if err := secp256k1.NewScalar().Decode(nil); err == nil || err.Error() != expected.Error() {
@@ -138,6 +179,7 @@ func TestScalar_Decode_nil(t *testing.T) {
 	}
 }
 
+// TestScalar_Decode_OutOfBounds verifies Decode rejects wrong lengths and non-canonical values.
 func TestScalar_Decode_OutOfBounds(t *testing.T) {
 	// Decode invalid length
 	encoded := make([]byte, scalarLength-1)
@@ -165,16 +207,269 @@ func TestScalar_Decode_OutOfBounds(t *testing.T) {
 	}
 
 	// Decode a scalar higher than order
-	encoded = make([]byte, scalarLength)
-	order1 := new(big.Int).SetBytes(order)
-	order1.Add(order1, big.NewInt(1)).FillBytes(encoded)
+	orderInt := scalarOrderInt()
+	orderInt.Add(orderInt, big.NewInt(1))
+	encoded = scalarBytes(orderInt)
 
 	expected = errors.New("scalar too big")
-	if err := secp256k1.NewScalar().Decode(order1.Bytes()); err == nil || err.Error() != expected.Error() {
+	if err := secp256k1.NewScalar().Decode(orderInt.Bytes()); err == nil || err.Error() != expected.Error() {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 }
 
+// TestScalar_Decode_ErrorDoesNotMutateReceiver verifies Decode leaves the receiver unchanged on error.
+func TestScalar_Decode_ErrorDoesNotMutateReceiver(t *testing.T) {
+	cases := []struct {
+		wantErr error
+		name    string
+		input   []byte
+	}{
+		{
+			name:    "nil",
+			input:   nil,
+			wantErr: errors.New("nil or empty scalar"),
+		},
+		{
+			name:    "empty",
+			input:   []byte{},
+			wantErr: errors.New("nil or empty scalar"),
+		},
+		{
+			name:    "short",
+			input:   make([]byte, scalarLength-1),
+			wantErr: errors.New("invalid scalar length"),
+		},
+		{
+			name:    "long",
+			input:   make([]byte, scalarLength+1),
+			wantErr: errors.New("invalid scalar length"),
+		},
+		{
+			name:    "order",
+			input:   secp256k1.Order(),
+			wantErr: errors.New("scalar too big"),
+		},
+		{
+			name:    "order plus one",
+			input:   scalarBytes(new(big.Int).Add(scalarOrderInt(), big.NewInt(1))),
+			wantErr: errors.New("scalar too big"),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := secp256k1.NewScalar().SetUInt64(9)
+			before := s.Copy()
+
+			err := s.Decode(tc.input)
+			if err == nil || err.Error() != tc.wantErr.Error() {
+				t.Fatalf("expected error %q, got %v", tc.wantErr, err)
+			}
+
+			if s.Equal(before) != 1 {
+				t.Fatal("expected scalar to remain unchanged on Decode() error")
+			}
+		})
+	}
+}
+
+// TestScalar_DecodeWithReduction verifies reduction semantics for canonical and non-canonical inputs.
+func TestScalar_DecodeWithReduction(t *testing.T) {
+	order := scalarOrderInt()
+	orderMinusOne := new(big.Int).Sub(new(big.Int).Set(order), big.NewInt(1))
+	orderPlusOne := new(big.Int).Add(new(big.Int).Set(order), big.NewInt(1))
+	orderPlusFortyTwo := new(big.Int).Add(new(big.Int).Set(order), big.NewInt(42))
+	maxUint256 := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1))
+
+	cases := []struct {
+		wantErr   error
+		name      string
+		input     []byte
+		want      []byte
+		canonical bool
+	}{
+		{
+			name:    "nil",
+			input:   nil,
+			wantErr: errors.New("nil or empty scalar"),
+		},
+		{
+			name:    "empty",
+			input:   []byte{},
+			wantErr: errors.New("nil or empty scalar"),
+		},
+		{
+			name:    "short",
+			input:   make([]byte, scalarLength-1),
+			wantErr: errors.New("invalid scalar length"),
+		},
+		{
+			name:    "long",
+			input:   make([]byte, scalarLength+1),
+			wantErr: errors.New("invalid scalar length"),
+		},
+		{
+			name:      "zero",
+			input:     scalarBytes(big.NewInt(0)),
+			want:      scalarBytes(big.NewInt(0)),
+			canonical: true,
+		},
+		{
+			name:      "one",
+			input:     scalarBytes(big.NewInt(1)),
+			want:      scalarBytes(big.NewInt(1)),
+			canonical: true,
+		},
+		{
+			name:      "leading zeros",
+			input:     scalarBytes(big.NewInt(42)),
+			want:      scalarBytes(big.NewInt(42)),
+			canonical: true,
+		},
+		{
+			name:      "order minus one",
+			input:     scalarBytes(orderMinusOne),
+			want:      scalarBytes(orderMinusOne),
+			canonical: true,
+		},
+		{
+			name:  "order reduces to zero",
+			input: scalarBytes(order),
+			want:  scalarBytes(big.NewInt(0)),
+		},
+		{
+			name:  "order plus one reduces to one",
+			input: scalarBytes(orderPlusOne),
+			want:  scalarBytes(big.NewInt(1)),
+		},
+		{
+			name:  "order plus forty two reduces to forty two",
+			input: scalarBytes(orderPlusFortyTwo),
+			want:  scalarBytes(big.NewInt(42)),
+		},
+		{
+			name:  "max uint256",
+			input: scalarBytes(maxUint256),
+			want:  reducedScalarBytes(scalarBytes(maxUint256)),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := secp256k1.NewScalar().SetUInt64(9)
+			before := s.Copy()
+
+			err := s.DecodeWithReduction(tc.input)
+			if tc.wantErr != nil {
+				if err == nil || err.Error() != tc.wantErr.Error() {
+					t.Fatalf("expected error %q, got %v", tc.wantErr, err)
+				}
+
+				if s.Equal(before) != 1 {
+					t.Fatal("expected scalar to remain unchanged on error")
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !bytes.Equal(s.Encode(), tc.want) {
+				t.Fatalf("unexpected reduced encoding\nwant: %x\ngot:  %s", tc.want, s.Hex())
+			}
+
+			expected := mustDecodeScalarBytes(t, tc.want)
+			if s.Equal(expected) != 1 {
+				t.Fatal(errExpectedEquality)
+			}
+
+			if len(tc.input) != scalarLength {
+				return
+			}
+
+			decoded := secp256k1.NewScalar()
+			err = decoded.Decode(tc.input)
+
+			if tc.canonical {
+				if err != nil {
+					t.Fatalf("Decode() unexpected error: %v", err)
+				}
+
+				if decoded.Equal(s) != 1 {
+					t.Fatal("expected Decode() and DecodeWithReduction() to match")
+				}
+
+				return
+			}
+
+			expectedErr := errors.New("scalar too big")
+			if err == nil || err.Error() != expectedErr.Error() {
+				t.Fatalf("expected error %q, got %v", expectedErr, err)
+			}
+		})
+	}
+}
+
+// TestScalar_DecodeWithReduction_RandomizedModOrder verifies reduction matches big.Int modulo arithmetic.
+func TestScalar_DecodeWithReduction_RandomizedModOrder(t *testing.T) {
+	const iterations = 256
+
+	rng := rand.New(rand.NewSource(1))
+
+	for i := range iterations {
+		input := make([]byte, scalarLength)
+		if _, err := rng.Read(input); err != nil {
+			t.Fatalf("case %d: failed to generate input: %v", i, err)
+		}
+
+		got := secp256k1.NewScalar()
+		if err := got.DecodeWithReduction(input); err != nil {
+			t.Fatalf("case %d: unexpected error: %v", i, err)
+		}
+
+		want := reducedScalarBytes(input)
+		if !bytes.Equal(got.Encode(), want) {
+			t.Fatalf("case %d: unexpected reduction for %x\nwant: %x\ngot:  %s", i, input, want, got.Hex())
+		}
+
+		expected := mustDecodeScalarBytes(t, want)
+		if got.Equal(expected) != 1 {
+			t.Fatalf("case %d: expected scalar equality", i)
+		}
+	}
+}
+
+// TestScalar_DecodeWithReduction_RandomizedOrderOffsets verifies order-plus-delta inputs reduce to delta.
+func TestScalar_DecodeWithReduction_RandomizedOrderOffsets(t *testing.T) {
+	const iterations = 256
+
+	rng := rand.New(rand.NewSource(2))
+	order := scalarOrderInt()
+	expectedErr := errors.New("scalar too big")
+
+	for i := range iterations {
+		delta := new(big.Int).SetUint64(rng.Uint64())
+		input := scalarBytes(new(big.Int).Add(new(big.Int).Set(order), delta))
+
+		got := secp256k1.NewScalar()
+		if err := got.DecodeWithReduction(input); err != nil {
+			t.Fatalf("case %d: unexpected error: %v", i, err)
+		}
+
+		want := scalarBytes(delta)
+		if !bytes.Equal(got.Encode(), want) {
+			t.Fatalf("case %d: unexpected reduction for delta %x\nwant: %x\ngot:  %s", i, delta, want, got.Hex())
+		}
+
+		if err := secp256k1.NewScalar().Decode(input); err == nil || err.Error() != expectedErr.Error() {
+			t.Fatalf("case %d: expected Decode() error %q, got %v", i, expectedErr, err)
+		}
+	}
+}
+
+// TestScalar_Zero verifies zero behaves as the additive identity.
 func TestScalar_Zero(t *testing.T) {
 	zero := secp256k1.NewScalar()
 	if !zero.IsZero() {
@@ -197,6 +492,7 @@ func TestScalar_Zero(t *testing.T) {
 	}
 }
 
+// TestScalar_One verifies One returns the multiplicative identity.
 func TestScalar_One(t *testing.T) {
 	one := secp256k1.NewScalar().One()
 	m := one.Copy()
@@ -205,6 +501,7 @@ func TestScalar_One(t *testing.T) {
 	}
 }
 
+// TestScalar_MinusOne verifies MinusOne matches order minus one.
 func TestScalar_MinusOne(t *testing.T) {
 	expected := secp256k1.NewScalar()
 	scalar.Sub(&expected.S, scalar.Order(), scalar.One())
@@ -216,6 +513,7 @@ func TestScalar_MinusOne(t *testing.T) {
 	}
 }
 
+// TestScalar_Random verifies Random never returns zero.
 func TestScalar_Random(t *testing.T) {
 	r := secp256k1.NewScalar().Random()
 	if r.IsZero() {
@@ -223,6 +521,7 @@ func TestScalar_Random(t *testing.T) {
 	}
 }
 
+// TestScalar_Equal verifies equality across nil, identical, copied, and random scalars.
 func TestScalar_Equal(t *testing.T) {
 	zero := secp256k1.NewScalar().Zero()
 	zero2 := secp256k1.NewScalar().Zero()
@@ -247,6 +546,7 @@ func TestScalar_Equal(t *testing.T) {
 	}
 }
 
+// TestScalar_LessOrEqual verifies ordering for small values and nearby random scalars.
 func TestScalar_LessOrEqual(t *testing.T) {
 	zero := secp256k1.NewScalar().Zero()
 	one := secp256k1.NewScalar().One()
@@ -292,6 +592,7 @@ func TestScalar_LessOrEqual(t *testing.T) {
 	}
 }
 
+// TestScalar_Add verifies adding nil leaves the scalar unchanged.
 func TestScalar_Add(t *testing.T) {
 	r := secp256k1.NewScalar().Random()
 	cpy := r.Copy()
@@ -300,6 +601,7 @@ func TestScalar_Add(t *testing.T) {
 	}
 }
 
+// TestScalar_Subtract verifies subtracting nil leaves the scalar unchanged.
 func TestScalar_Subtract(t *testing.T) {
 	r := secp256k1.NewScalar().Random()
 	cpy := r.Copy()
@@ -308,6 +610,7 @@ func TestScalar_Subtract(t *testing.T) {
 	}
 }
 
+// TestScalar_Multiply verifies multiplying by nil yields zero.
 func TestScalar_Multiply(t *testing.T) {
 	s := secp256k1.NewScalar().Random()
 	if !s.Multiply(nil).IsZero() {
@@ -317,8 +620,7 @@ func TestScalar_Multiply(t *testing.T) {
 
 func testModPow(base, exp *secp256k1.Scalar, basei, expi, mod *big.Int) error {
 	iResult := new(big.Int).Exp(basei, expi, mod)
-	b := make([]byte, scalarLength)
-	iResult.FillBytes(b)
+	b := scalarBytes(iResult)
 
 	result := secp256k1.NewScalar()
 	if err := result.Decode(b); err != nil {
@@ -337,6 +639,7 @@ func testModPow(base, exp *secp256k1.Scalar, basei, expi, mod *big.Int) error {
 	return nil
 }
 
+// TestScalar_Pow verifies exponentiation against algebraic identities and big.Int modular exponentiation.
 func TestScalar_Pow(t *testing.T) {
 	// s^nil = 1
 	s := secp256k1.NewScalar().Random()
@@ -403,7 +706,7 @@ func TestScalar_Pow(t *testing.T) {
 	// fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
 	iBase := big.NewInt(3)
 	iExp := big.NewInt(255)
-	order := new(big.Int).SetBytes(secp256k1.Order())
+	order := scalarOrderInt()
 	s.SetUInt64(3)
 	exp.SetUInt64(255)
 
@@ -485,6 +788,7 @@ func TestScalar_Pow(t *testing.T) {
 	*/
 }
 
+// TestScalar_Invert verifies inversion is consistent with multiplication and squaring.
 func TestScalar_Invert(t *testing.T) {
 	s := secp256k1.NewScalar().Random()
 	sqr := s.Copy().Square()
@@ -502,6 +806,7 @@ func TestScalar_Invert(t *testing.T) {
 	}
 }
 
+// TestScalar_HashToScalar verifies HashToScalar matches the expected reference output.
 func TestScalar_HashToScalar(t *testing.T) {
 	data := []byte("input data")
 	dst := []byte("domain separation tag")
@@ -523,6 +828,7 @@ func TestScalar_HashToScalar(t *testing.T) {
 	}
 }
 
+// TestScalar_HashToScalar_NoDST verifies HashToScalar panics on a missing DST.
 func TestScalar_HashToScalar_NoDST(t *testing.T) {
 	data := []byte("input data")
 
@@ -541,6 +847,7 @@ func TestScalar_HashToScalar_NoDST(t *testing.T) {
 	}
 }
 
+// TestScalarBitsMSB verifies Bits exposes the most significant bit at index 255.
 func TestScalarBitsMSB(t *testing.T) {
 	// Define the scalar with only the MSB set: 0x8000...0000
 	scalarBytes := [32]byte{}
@@ -556,7 +863,7 @@ func TestScalarBitsMSB(t *testing.T) {
 	bits := s.Bits()
 
 	// Verify that only the MSB is set
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		expected := uint8(0)
 		if i == 255 {
 			expected = 1
@@ -574,7 +881,7 @@ var (
 
 func hasPanic(f func()) (has bool, err error) {
 	err = nil
-	var report interface{}
+	var report any
 	func() {
 		defer func() {
 			if report = recover(); report != nil {

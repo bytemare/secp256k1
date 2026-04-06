@@ -84,11 +84,13 @@ func testEncoding(t *testing.T, thing1, thing2 serde) {
 	}
 }
 
+// TestScalar_Encoding verifies scalar byte, binary, and hex encodings round-trip.
 func TestScalar_Encoding(t *testing.T) {
 	scalar := secp256k1.NewScalar().Random()
 	testEncoding(t, scalar, secp256k1.NewScalar())
 }
 
+// TestElement_Encoding verifies element encodings and coordinate access round-trip.
 func TestElement_Encoding(t *testing.T) {
 	scalar := secp256k1.NewScalar().Random()
 	element := secp256k1.Base().Multiply(scalar)
@@ -133,6 +135,7 @@ func TestElement_Encoding(t *testing.T) {
 	}
 }
 
+// TestElement_Decode_fails verifies element decoding rejects malformed encodings.
 func TestElement_Decode_fails(t *testing.T) {
 	scalar := secp256k1.NewScalar().Random()
 	element := secp256k1.Base().Multiply(scalar)
@@ -206,6 +209,7 @@ func rand32Bytes() [32]byte {
 	return buf
 }
 
+// TestScalar_DecodeHex_Fails verifies scalar hex decoding round-trips and rejects malformed input.
 func TestScalar_DecodeHex_Fails(t *testing.T) {
 	scalar := secp256k1.NewScalar().Random()
 	testEncoding(t, scalar, secp256k1.NewScalar())
@@ -224,6 +228,7 @@ func TestScalar_DecodeHex_Fails(t *testing.T) {
 	}
 }
 
+// TestElement_DecodeHex_Fails verifies element hex decoding round-trips and rejects malformed input.
 func TestElement_DecodeHex_Fails(t *testing.T) {
 	scalar := secp256k1.NewScalar().Random()
 	element := secp256k1.Base().Multiply(scalar)

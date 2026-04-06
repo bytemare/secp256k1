@@ -166,7 +166,7 @@ func ReduceBytes(out *MontgomeryDomainFieldElement, input [scalarSize]byte) uint
 	return reduced
 }
 
-// FromBytesNoReduce sets out to input, without redcution.
+// FromBytesNoReduce sets out to input, without reduction.
 func FromBytesNoReduce(out *MontgomeryDomainFieldElement, input []byte) {
 	// pad to 256 bits: input will always be smaller than the modulo, so no reduction needed.
 	var pad [scalarSize]byte

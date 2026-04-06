@@ -42,6 +42,7 @@ var multBase = []string{
 	"02d7924d4f7d43ea965a465ae3095ff41131e5946f3c85f79e44adbcf8e27e080e",
 }
 
+// TestElement_Base verifies the encoded base point matches the canonical generator.
 func TestElement_Base(t *testing.T) {
 	base := hex.EncodeToString(secp256k1.Base().Encode())
 	if base != basePoint {
@@ -58,6 +59,7 @@ func decodeHexElement(t *testing.T, input string) *secp256k1.Element {
 	return e
 }
 
+// TestElement_Vectors_Add verifies repeated addition matches the known base-point multiples.
 func TestElement_Vectors_Add(t *testing.T) {
 	base := secp256k1.Base()
 	acc := secp256k1.Base()
@@ -81,6 +83,7 @@ func TestElement_Vectors_Add(t *testing.T) {
 	}
 }
 
+// TestElement_Vectors_Double verifies doubling tracks repeated self-addition.
 func TestElement_Vectors_Double(t *testing.T) {
 	double := secp256k1.Base()
 	add := secp256k1.Base()
@@ -95,6 +98,7 @@ func TestElement_Vectors_Double(t *testing.T) {
 	}
 }
 
+// TestElement_Vectors_Mult verifies scalar multiplication matches known base-point multiples.
 func TestElement_Vectors_Mult(t *testing.T) {
 	s := secp256k1.NewScalar()
 	base := secp256k1.Base()
@@ -137,12 +141,14 @@ func testElementCopySet(t *testing.T, element, other *secp256k1.Element) {
 	}
 }
 
+// TestElementCopy verifies Copy returns an equivalent element with independent state.
 func TestElementCopy(t *testing.T) {
 	base := secp256k1.Base()
 	cpy := base.Copy()
 	testElementCopySet(t, base, cpy)
 }
 
+// TestElementSet verifies Set copies an element value without aliasing state.
 func TestElementSet(t *testing.T) {
 	base := secp256k1.Base()
 	other := secp256k1.NewElement()
@@ -150,6 +156,7 @@ func TestElementSet(t *testing.T) {
 	testElementCopySet(t, base, other)
 }
 
+// TestElement_EncodedLength verifies identity, compressed, and uncompressed encoding lengths.
 func TestElement_EncodedLength(t *testing.T) {
 	id := secp256k1.NewElement().Identity().Encode()
 	if len(id) != elementLengthIdentity {
@@ -191,6 +198,7 @@ func TestElement_EncodedLength(t *testing.T) {
 	}
 }
 
+// TestElement_Decode_OutOfBounds verifies decoding rejects invalid point encodings and coordinates.
 func TestElement_Decode_OutOfBounds(t *testing.T) {
 	expected := errors.New("invalid point encoding")
 
@@ -223,6 +231,7 @@ func TestElement_Decode_OutOfBounds(t *testing.T) {
 	}
 }
 
+// TestElement_Equal verifies equality for identical elements and copies.
 func TestElement_Equal(t *testing.T) {
 	base := secp256k1.Base()
 	base2 := secp256k1.Base()
@@ -238,6 +247,7 @@ func TestElement_Equal(t *testing.T) {
 	}
 }
 
+// TestElement_Add verifies addition identities, inverses, and repeated-addition behavior.
 func TestElement_Add(t *testing.T) {
 	// Verify whether add yields the same element when given nil
 	base := secp256k1.Base()
@@ -289,6 +299,7 @@ func TestElement_Add(t *testing.T) {
 	}
 }
 
+// TestElement_Negate verifies negation on the identity and on the base point.
 func TestElement_Negate(t *testing.T) {
 	// 0 = -0
 	id := secp256k1.NewElement().Identity()
@@ -316,6 +327,7 @@ func TestElement_Negate(t *testing.T) {
 	}
 }
 
+// TestElement_Double verifies doubling matches addition and multiplication by two.
 func TestElement_Double(t *testing.T) {
 	// Verify whether double works like adding
 	base := secp256k1.Base()
@@ -332,6 +344,7 @@ func TestElement_Double(t *testing.T) {
 	}
 }
 
+// TestElement_Substract verifies subtraction handles nil and undoes addition.
 func TestElement_Substract(t *testing.T) {
 	base := secp256k1.Base()
 
@@ -347,6 +360,7 @@ func TestElement_Substract(t *testing.T) {
 	}
 }
 
+// TestElement_Multiply verifies scalar multiplication identities and basic consistency rules.
 func TestElement_Multiply(t *testing.T) {
 	scalar := secp256k1.NewScalar()
 
@@ -384,6 +398,7 @@ func TestElement_Multiply(t *testing.T) {
 	}
 }
 
+// TestElement_Identity verifies identity encoding, decoding, and arithmetic behavior.
 func TestElement_Identity(t *testing.T) {
 	id := secp256k1.NewElement()
 	if !id.IsIdentity() {

@@ -298,20 +298,28 @@ func (s *Scalar) Encode() []byte {
 	return scalar.NonMontgomeryToBytes(&nm)
 }
 
-// Decode sets the receiver to a decoding of the input data, and returns an error on failure.
-func (s *Scalar) Decode(in []byte) error {
-	switch len(in) {
-	case 0:
-		return errParamNilScalar
-	case scalarLength:
-		break
-	default:
-		return errParamScalarLength
+// Decode sets s to a big-endian 32-byte decoding of x.
+// If in is not a canonical encoding of s, Decode returns an error.
+func (s *Scalar) Decode(x []byte) error {
+	t, _, err := decodeScalar(x)
+	if err != nil {
+		return err
 	}
 
-	if scalar.ReduceBytes(&s.S, [scalarLength]byte(in)) == 0 {
-		return errParamScalarTooBig
+	s.set(t)
+
+	return nil
+}
+
+// DecodeWithReduction sets s to x modulo the group order. If x is nil or
+// not 32 bytes, DecodeWithReduction returns an error.
+func (s *Scalar) DecodeWithReduction(x []byte) error {
+	t, reduced, err := decodeScalar(x)
+	if err != nil && !reduced {
+		return err
 	}
+
+	s.set(t)
 
 	return nil
 }
@@ -344,4 +352,25 @@ func (s *Scalar) UnmarshalBinary(data []byte) error {
 func (s *Scalar) set(t *scalar.MontgomeryDomainFieldElement) *Scalar {
 	copy(s.S[:], t[:])
 	return s
+}
+
+// decodeScalar returns x modulo the group order, whether reduction was
+// necessary, and an error for invalid or non-canonical inputs.
+func decodeScalar(x []byte) (*scalar.MontgomeryDomainFieldElement, bool, error) {
+	switch len(x) {
+	case 0:
+		return nil, false, errParamNilScalar
+	case scalarLength:
+		break
+	default:
+		return nil, false, errParamScalarLength
+	}
+
+	var s scalar.MontgomeryDomainFieldElement
+
+	if scalar.ReduceBytes(&s, [scalarLength]byte(x)) == 0 {
+		return &s, true, errParamScalarTooBig
+	}
+
+	return &s, false, nil
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/bytemare/secp256k1"
 )
 
-// Example_ScalarMult shows how to do a scalar multiplication.
+// Example_scalarMult shows how to multiply the base point by a scalar.
 func Example_scalarMult() {
 	// Get an element. Here, we're taking the group generator.
 	g := secp256k1.Base()
@@ -25,12 +25,11 @@ func Example_scalarMult() {
 
 	// Multiply. Boom.
 	g.Multiply(s)
-
 	// Output:
 }
 
-// ExampleElement_Decode shows how to decode data into elements.
-func ExampleElement_Decode() {
+// ExampleElement_decode shows how to decode a serialized element.
+func ExampleElement_decode() {
 	// Let's say we have this element.
 	g := secp256k1.Base()
 
@@ -53,6 +52,5 @@ func ExampleElement_Decode() {
 	if e.Equal(g) != 1 {
 		fmt.Println("something went wrong")
 	}
-
 	// Output: 0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798
 }

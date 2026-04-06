@@ -100,6 +100,7 @@ func (v *h2cVectors) runCiphersuite(t *testing.T) {
 	}
 }
 
+// TestHashToGroupVectors verifies HashToGroup and EncodeToGroup against the bundled vectors.
 func TestHashToGroupVectors(t *testing.T) {
 	if err := filepath.Walk(hashToCurveVectorsFileLocation,
 		func(path string, info os.FileInfo, err error) error {
