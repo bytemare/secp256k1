@@ -299,7 +299,7 @@ func (s *Scalar) Encode() []byte {
 }
 
 // Decode sets s to a big-endian 32-byte decoding of x.
-// If in is not a canonical encoding of s, Decode returns an error.
+// If x is not a canonical encoding of s, Decode returns an error.
 func (s *Scalar) Decode(x []byte) error {
 	t, _, err := decodeScalar(x)
 	if err != nil {
