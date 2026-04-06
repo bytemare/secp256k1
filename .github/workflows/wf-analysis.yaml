@@ -27,7 +27,7 @@ permissions: {}
 
 jobs:
   Lint:
-    uses: bytemare/workflows/.github/workflows/suite-lint.yaml@66c5ecdf13473029efbf3dd3d4c3a676f4aac5aa
+    uses: bytemare/workflows/.github/workflows/suite-lint.yaml@e965440e90e3d80e63473574eba1ffe5ba9443cd
     permissions:
       contents: read
       packages: read
@@ -43,7 +43,7 @@ jobs:
       super-linter-rules-path: .github
 
   Governance:
-    uses: bytemare/workflows/.github/workflows/suite-governance.yaml@66c5ecdf13473029efbf3dd3d4c3a676f4aac5aa
+    uses: bytemare/workflows/.github/workflows/suite-governance.yaml@e965440e90e3d80e63473574eba1ffe5ba9443cd
     permissions:
       contents: write   # GitHub Dependency Submission API requirement to submit dependencies to the graph
       pull-requests: write  # needed when posting the summary
@@ -68,7 +68,7 @@ jobs:
       scorecard: true
       # Dependency Review
       dependency-review: true
-      dependency_review_config_file: .github/dependency-review-config.yaml
+      dependency_review_config_file: ".github/dependency-review-config.yaml"
       # OSS Review Toolkit (ORT)
       ort: true
       # ---- Baseline PR gate (fast, GitHub-native) ----
@@ -89,7 +89,7 @@ jobs:
       scorecard: ${{ secrets.SCORECARD_TOKEN }}
 
   CodeScan:
-    uses: bytemare/workflows/.github/workflows/suite-codescan.yaml@66c5ecdf13473029efbf3dd3d4c3a676f4aac5aa
+    uses: bytemare/workflows/.github/workflows/suite-codescan.yaml@e965440e90e3d80e63473574eba1ffe5ba9443cd
     permissions:
       contents: read
       security-events: write
@@ -102,16 +102,19 @@ jobs:
       # CodeQL
       codeql: true
       codeql-language: go # comma-separated list supported
+      codeql-go-check-latest: true
       # SonarQube
       sonarqube: true
       sonarqube-configuration: .github/sonar-project.properties
       # Shared coverage generation (one-time, consumed by SonarQube and Codecov)
       coverage-enabled: true
       coverage-go-enabled: true
+      coverage-go-check-latest: true
       coverage-go-command: "make -C .github cover"
       coverage-go-report-path: ".github/coverage.out"
       # Govulncheck
       govulncheck: true
+      govulncheck-go-check-latest: true
       # Gitleaks
       gitleaks: true
       # Codecov upload

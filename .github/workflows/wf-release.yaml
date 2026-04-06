@@ -30,7 +30,7 @@ jobs:
       dry_run: ${{ github.event_name == 'pull_request' }}
       create_release: ${{ github.event_name != 'pull_request' }}
       sign_blobs: true
-      extended_metadata: false # Set to true for forensics mode
+      extended_metadata: true # Set to true for forensics mode
     permissions:
       contents: write               # create/update release & upload assets
       id-token: write               # OIDC for attestations/provenance
