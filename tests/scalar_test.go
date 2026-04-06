@@ -291,22 +291,22 @@ func TestScalar_DecodeWithReduction(t *testing.T) {
 		{
 			name:    "nil",
 			input:   nil,
-			wantErr: errors.New("nil or empty scalar"),
+			wantErr: secp256k1.ErrParamInvalidInputLength,
 		},
 		{
 			name:    "empty",
 			input:   []byte{},
-			wantErr: errors.New("nil or empty scalar"),
+			wantErr: secp256k1.ErrParamInvalidInputLength,
 		},
 		{
 			name:    "short",
 			input:   make([]byte, scalarLength-1),
-			wantErr: errors.New("invalid scalar length"),
+			wantErr: secp256k1.ErrParamInvalidInputLength,
 		},
 		{
 			name:    "long",
 			input:   make([]byte, scalarLength+1),
-			wantErr: errors.New("invalid scalar length"),
+			wantErr: secp256k1.ErrParamInvalidInputLength,
 		},
 		{
 			name:      "zero",

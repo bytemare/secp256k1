@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 # Automate addition chain creation for big exponentiation in finite fields using https://github.com/mmcloughlin/addchain.
 # SPDX-License-Identifier: MIT
 #

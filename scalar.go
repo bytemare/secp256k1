@@ -21,14 +21,17 @@ import (
 )
 
 var (
-	// errParamScalarLength indicates an invalid Scalar length.
-	errParamScalarLength = errors.New("invalid scalar length")
+	// ErrParamScalarLength indicates an invalid Scalar length.
+	ErrParamScalarLength = errors.New("invalid scalar length")
 
-	// errParamNilScalar indicates a forbidden nil or empty Scalar.
-	errParamNilScalar = errors.New("nil or empty scalar")
+	// ErrParamNilScalar indicates a forbidden nil or empty Scalar.
+	ErrParamNilScalar = errors.New("nil or empty scalar")
 
-	// errParamScalarTooBig reports an error when the input Scalar is too big.
-	errParamScalarTooBig = errors.New("scalar too big")
+	// ErrParamScalarTooBig reports an error when the input Scalar is too big.
+	ErrParamScalarTooBig = errors.New("scalar too big")
+
+	// ErrParamInvalidInputLength indicates the input length is invalid.
+	ErrParamInvalidInputLength = errors.New("invalid input length")
 )
 
 type disallowEqual [0]func()
@@ -281,7 +284,7 @@ func (s *Scalar) SetUInt64(i uint64) *Scalar {
 // CSelect sets the receiver to u if cond == 0, and to v otherwise, in constant-time.
 func (s *Scalar) CSelect(cond uint64, u, v *Scalar) error {
 	if u == nil || v == nil {
-		return errParamNilScalar
+		return ErrParamNilScalar
 	}
 
 	scalar.CMove(&s.S, cond, &u.S, &v.S)
@@ -316,7 +319,7 @@ func (s *Scalar) Decode(x []byte) error {
 func (s *Scalar) DecodeWithReduction(x []byte) error {
 	t, reduced, err := decodeScalar(x)
 	if err != nil && !reduced {
-		return err
+		return ErrParamInvalidInputLength
 	}
 
 	s.set(t)
@@ -359,17 +362,17 @@ func (s *Scalar) set(t *scalar.MontgomeryDomainFieldElement) *Scalar {
 func decodeScalar(x []byte) (*scalar.MontgomeryDomainFieldElement, bool, error) {
 	switch len(x) {
 	case 0:
-		return nil, false, errParamNilScalar
+		return nil, false, ErrParamNilScalar
 	case scalarLength:
 		break
 	default:
-		return nil, false, errParamScalarLength
+		return nil, false, ErrParamScalarLength
 	}
 
 	var s scalar.MontgomeryDomainFieldElement
 
 	if scalar.ReduceBytes(&s, [scalarLength]byte(x)) == 0 {
-		return &s, true, errParamScalarTooBig
+		return &s, true, ErrParamScalarTooBig
 	}
 
 	return &s, false, nil
