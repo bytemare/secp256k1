@@ -6,7 +6,6 @@
 // LICENSE file in the root directory of this source tree or at
 // https://spdx.org/licenses/MIT.html
 
-// Package scalar implements prime-order scalar operations in the SECP256k1 group building on Fiat-Crypto.
 package scalar
 
 import (
