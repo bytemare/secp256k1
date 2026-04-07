@@ -6,7 +6,6 @@
 // LICENSE file in the root directory of this source tree or at
 // https://spdx.org/licenses/MIT.html
 
-// Package scalar implements prime-order scalar operations in the SECP256k1 group building on Fiat-Crypto.
 package scalar
 
 import (
@@ -166,7 +165,7 @@ func ReduceBytes(out *MontgomeryDomainFieldElement, input [scalarSize]byte) uint
 	return reduced
 }
 
-// FromBytesNoReduce sets out to input, without redcution.
+// FromBytesNoReduce sets out to input, without reduction.
 func FromBytesNoReduce(out *MontgomeryDomainFieldElement, input []byte) {
 	// pad to 256 bits: input will always be smaller than the modulo, so no reduction needed.
 	var pad [scalarSize]byte

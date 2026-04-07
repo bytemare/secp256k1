@@ -25,24 +25,28 @@ const (
 	errExpectedEquality       = "expected equality"
 )
 
+// TestGroup_Ciphersuite verifies the advertised hash-to-curve ciphersuite ID.
 func TestGroup_Ciphersuite(t *testing.T) {
 	if secp256k1.Ciphersuite() != h2c {
 		t.Fatal(errExpectedEquality)
 	}
 }
 
+// TestGroup_ScalarLength verifies the encoded scalar length constant.
 func TestGroup_ScalarLength(t *testing.T) {
 	if secp256k1.ScalarLength() != scalarLength {
 		t.Fatal(errExpectedEquality)
 	}
 }
 
+// TestGroup_ElementLength verifies the compressed element length constant.
 func TestGroup_ElementLength(t *testing.T) {
 	if secp256k1.ElementLength() != elementLengthCompressed {
 		t.Fatal(errExpectedEquality)
 	}
 }
 
+// TestGroup_Order verifies the exposed group order bytes.
 func TestGroup_Order(t *testing.T) {
 	groupOrderBytes := []byte{
 		255,

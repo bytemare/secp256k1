@@ -21,14 +21,17 @@ import (
 )
 
 var (
-	// errParamScalarLength indicates an invalid Scalar length.
-	errParamScalarLength = errors.New("invalid scalar length")
+	// ErrParamScalarLength indicates an invalid Scalar length.
+	ErrParamScalarLength = errors.New("invalid scalar length")
 
-	// errParamNilScalar indicates a forbidden nil or empty Scalar.
-	errParamNilScalar = errors.New("nil or empty scalar")
+	// ErrParamNilScalar indicates a forbidden nil or empty Scalar.
+	ErrParamNilScalar = errors.New("nil or empty scalar")
 
-	// errParamScalarTooBig reports an error when the input Scalar is too big.
-	errParamScalarTooBig = errors.New("scalar too big")
+	// ErrParamScalarTooBig reports an error when the input Scalar is too big.
+	ErrParamScalarTooBig = errors.New("scalar too big")
+
+	// ErrParamInvalidInputLength indicates the input length is invalid.
+	ErrParamInvalidInputLength = errors.New("invalid input length")
 )
 
 type disallowEqual [0]func()
@@ -281,7 +284,7 @@ func (s *Scalar) SetUInt64(i uint64) *Scalar {
 // CSelect sets the receiver to u if cond == 0, and to v otherwise, in constant-time.
 func (s *Scalar) CSelect(cond uint64, u, v *Scalar) error {
 	if u == nil || v == nil {
-		return errParamNilScalar
+		return ErrParamNilScalar
 	}
 
 	scalar.CMove(&s.S, cond, &u.S, &v.S)
@@ -298,20 +301,28 @@ func (s *Scalar) Encode() []byte {
 	return scalar.NonMontgomeryToBytes(&nm)
 }
 
-// Decode sets the receiver to a decoding of the input data, and returns an error on failure.
-func (s *Scalar) Decode(in []byte) error {
-	switch len(in) {
-	case 0:
-		return errParamNilScalar
-	case scalarLength:
-		break
-	default:
-		return errParamScalarLength
+// Decode sets s to a big-endian 32-byte decoding of x.
+// If x is not a canonical encoding of s, Decode returns an error.
+func (s *Scalar) Decode(x []byte) error {
+	t, _, err := decodeScalar(x)
+	if err != nil {
+		return err
 	}
 
-	if scalar.ReduceBytes(&s.S, [scalarLength]byte(in)) == 0 {
-		return errParamScalarTooBig
+	s.set(t)
+
+	return nil
+}
+
+// DecodeWithReduction sets s to x modulo the group order. If x is nil or
+// not 32 bytes, DecodeWithReduction returns an error.
+func (s *Scalar) DecodeWithReduction(x []byte) error {
+	t, reduced, err := decodeScalar(x)
+	if err != nil && !reduced {
+		return ErrParamInvalidInputLength
 	}
+
+	s.set(t)
 
 	return nil
 }
@@ -344,4 +355,25 @@ func (s *Scalar) UnmarshalBinary(data []byte) error {
 func (s *Scalar) set(t *scalar.MontgomeryDomainFieldElement) *Scalar {
 	copy(s.S[:], t[:])
 	return s
+}
+
+// decodeScalar returns x modulo the group order, whether reduction was
+// necessary, and an error for invalid or non-canonical inputs.
+func decodeScalar(x []byte) (*scalar.MontgomeryDomainFieldElement, bool, error) {
+	switch len(x) {
+	case 0:
+		return nil, false, ErrParamNilScalar
+	case scalarLength:
+		break
+	default:
+		return nil, false, ErrParamScalarLength
+	}
+
+	var s scalar.MontgomeryDomainFieldElement
+
+	if scalar.ReduceBytes(&s, [scalarLength]byte(x)) == 0 {
+		return &s, true, ErrParamScalarTooBig
+	}
+
+	return &s, false, nil
 }
