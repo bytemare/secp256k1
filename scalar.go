@@ -13,7 +13,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	"math/bits"
 
@@ -87,10 +86,7 @@ func (s *Scalar) Random() *Scalar {
 	)
 
 	for scalar.IsFEZero(&m) == 1 {
-		_, err := io.ReadFull(rand.Reader, buf[:])
-		if err != nil {
-			panic(err)
-		}
+		_, _ = rand.Read(buf[:])
 
 		nm := scalar.BytesToNonMontgomery(buf)
 		_ = scalar.Reduce(nm)
