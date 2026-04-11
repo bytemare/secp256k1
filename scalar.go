@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"math/bits"
 
 	"github.com/bytemare/secp256k1/internal/scalar"
 )
@@ -228,21 +227,9 @@ func (s *Scalar) Equal(t *Scalar) int {
 	return int(scalar.Equal(&s.S, &t.S))
 }
 
-// LessOrEqual returns 1 if s <= t and 0 otherwise.
+// LessOrEqual returns 1 if s <= t and 0 otherwise, using canonical integer ordering on encoded scalars in [0, n-1].
 func (s *Scalar) LessOrEqual(t *Scalar) uint64 {
-	var (
-		borrow uint64
-		diff   [4]uint64
-	)
-
-	diff[0], borrow = bits.Sub64(s.S[0], t.S[0], borrow)
-	diff[1], borrow = bits.Sub64(s.S[1], t.S[1], borrow)
-	diff[2], borrow = bits.Sub64(s.S[2], t.S[2], borrow)
-	diff[3], borrow = bits.Sub64(s.S[3], t.S[3], borrow)
-
-	equal := scalar.IsZero(diff[0] | diff[1] | diff[2] | diff[3])
-
-	return equal | scalar.IsNonZero(borrow)
+	return scalar.LessOrEqual(&s.S, &t.S)
 }
 
 // IsZero returns whether the Scalar is 0.

@@ -37,11 +37,9 @@ func Base() *Element {
 // The DST must not be empty or nil, and is recommended to be longer than 16 bytes.
 func HashToScalar(input, dst []byte) *Scalar {
 	uniform := expandXMD(input, dst, uint(secLength))
-	s := NewScalar()
-
-	scalar.HashToFieldElement(&s.S, [48]byte(uniform))
-
-	return s
+	return &Scalar{
+		S: *scalar.ReduceWideBytes(&scalar.MontgomeryDomainFieldElement{}, [secLength]byte(uniform)),
+	}
 }
 
 // HashToGroup returns a safe mapping of the arbitrary input to an Element in the Group.
@@ -49,8 +47,8 @@ func HashToScalar(input, dst []byte) *Scalar {
 func HashToGroup(input, dst []byte) *Element {
 	expLength := 2 * 1 * uint(secLength) // elements * ext * security length
 	uniform := expandXMD(input, dst, expLength)
-	u0 := field.New().HashToFieldElement([secLength]byte(uniform[:secLength]))
-	u1 := field.New().HashToFieldElement([secLength]byte(uniform[secLength : 2*secLength]))
+	u0 := field.New().ReduceWideBytes([secLength]byte(uniform[:secLength]))
+	u1 := field.New().ReduceWideBytes([secLength]byte(uniform[secLength : 2*secLength]))
 	q0 := SSWU(u0)
 	q1 := SSWU(u1)
 
@@ -62,7 +60,7 @@ func HashToGroup(input, dst []byte) *Element {
 func EncodeToGroup(input, dst []byte) *Element {
 	expLength := 1 * 1 * uint(secLength) // elements * ext * security length
 	uniform := expandXMD(input, dst, expLength)
-	u0 := field.New().HashToFieldElement([secLength]byte(uniform[:secLength]))
+	u0 := field.New().ReduceWideBytes([secLength]byte(uniform[:secLength]))
 
 	return IsogenySecp256k13iso(SSWU(u0))
 }

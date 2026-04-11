@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	// SecLength is the security length dictating the input length for HashToFieldElement.
+	// SecLength is the security length dictating the input length for ReduceWideBytes.
 	SecLength = 48
 )
 
@@ -173,33 +173,28 @@ func (e *Element) FromBytesNoReduce(input []byte) *Element {
 	return e
 }
 
-// HashToFieldElement sets e to a field element from a 48-byte string obtained by ExpandXMD.
+// ReduceWideBytes sets out to a field element from a byte string obtained by ExpandXMD, of length 48.
 // We use Frank Denis' trick, c.f. blog from Filippo: https://words.filippo.io/dispatches/wide-reduction
 // i.e. represent the value as a+b*2^192+c*2^384.
-func (e *Element) HashToFieldElement(input [SecLength]byte) *Element {
-	// We're dealing with a non-canonical form, so let's package it properly by extending to 64 bytes.
-	// 64 - secLength = 26
-	// var in [64]byte
-	// copy(in[64-len(input):], input[:])
-	in := make([]byte, 16, 64)
-	in = append(in, input[:]...)
+func (e *Element) ReduceWideBytes(input [SecLength]byte) *Element {
+	// We're dealing with a non-canonical form, so we would package it as such properly by extending to 64 bytes.
+	// But the reduction trick would make the exact last 16 bytes be only 0, so we can spare the copy and just work
+	// with the 48 bytes directly.
+	e.FromBytesNoReduce(input[24:])
+	_b := New().FromBytesNoReduce(input[:24])
+	// We would do _c := New().FromBytesNoReduce(in[:16]) on a 64 byte slice,
+	// but since we only have 48 bytes, the 16 extra bytes are always 0,
+	// and so we can spare all operations involving _c.
 
-	e.FromBytesNoReduce(in[40:])
-	_b := New().FromBytesNoReduce(in[16:40])
-	_c := New().FromBytesNoReduce(in[:16])
-
-	var (
-		// 2^192 mod (2^256 - 2^32 - 977) in the Montgomery domain.
-		two192 = &MontgomeryDomainFieldElement{0, 0, 0, 4294968273}
-
-		// 2^384 mod (2^256 - 2^32 - 977) in the Montgomery domain.
-		two384 = &MontgomeryDomainFieldElement{0, 0, 8392367050913, 1}
-	)
+	// 2^192 mod (2^256 - 2^32 - 977) in the Montgomery domain.
+	two192 := &MontgomeryDomainFieldElement{0, 0, 0, 4294968273}
+	// 2^384 mod (2^256 - 2^32 - 977) in the Montgomery domain.
+	// two384 = &MontgomeryDomainFieldElement{0, 0, 8392367050913, 1}
 
 	Mul(&_b.E, &_b.E, two192) // b*2^192
-	Mul(&_c.E, &_c.E, two384) // c*2^384
+	// Mul(&_c.E, &_c.E, two384) // c*2^384.
 	Add(&e.E, &e.E, &_b.E)
-	Add(&e.E, &e.E, &_c.E)
+	// Add(&e.E, &e.E, &_c.E).
 
 	return e
 }

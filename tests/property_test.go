@@ -20,6 +20,7 @@ import (
 const (
 	groupLawIterations       = 64
 	roundTripIterations      = 128
+	scalarCompareIterations  = 256
 	scalarPowIterations      = 128
 	scalarRandomRangeSamples = 256
 )
@@ -30,17 +31,17 @@ func newDeterministicTestRand() *rand.Rand {
 }
 
 // deterministicReducedScalar decodes a reproducible random scalar reduced modulo the group order.
-func deterministicReducedScalar(t *testing.T, rng *rand.Rand) *secp256k1.Scalar {
-	t.Helper()
+func deterministicReducedScalar(tb testing.TB, rng *rand.Rand) *secp256k1.Scalar {
+	tb.Helper()
 
 	input := make([]byte, scalarLength)
 	if _, err := rng.Read(input); err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 
 	s := secp256k1.NewScalar()
 	if err := s.DecodeWithReduction(input); err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 
 	return s
@@ -64,6 +65,28 @@ func TestScalar_Pow_RandomizedAgainstBigInt(t *testing.T) {
 
 		if !bytes.Equal(got.Encode(), want) {
 			t.Fatalf("case %d: unexpected Pow output", i)
+		}
+	}
+}
+
+// TestScalar_LessOrEqual_RandomizedAgainstBigInt cross-checks canonical scalar ordering against big.Int.
+func TestScalar_LessOrEqual_RandomizedAgainstBigInt(t *testing.T) {
+	rng := newDeterministicTestRand()
+
+	for i := range scalarCompareIterations {
+		left := deterministicReducedScalar(t, rng)
+		right := deterministicReducedScalar(t, rng)
+
+		want := 0
+		iLeft := new(big.Int).SetBytes(left.Encode())
+		iRight := new(big.Int).SetBytes(right.Encode())
+
+		if iLeft.Cmp(iRight) <= 0 {
+			want = 1
+		}
+
+		if got := left.LessOrEqual(right); int(got) != want {
+			t.Fatalf("case %d: expected %v, got %v", i, want, got)
 		}
 	}
 }
