@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	// SecLength is the security length dictating the input length for HashToFieldElement.
+	// SecLength is the security length dictating the input length for ReduceWideBytes.
 	SecLength = 48
 
 	scalarSize = 32
@@ -139,6 +139,29 @@ func Equal(u, v *MontgomeryDomainFieldElement) uint64 {
 	return IsZero(res)
 }
 
+// LessOrEqual returns 1 if u <= v and 0 otherwise, using canonical scalar ordering.
+func LessOrEqual(u, v *MontgomeryDomainFieldElement) uint64 {
+	var (
+		borrow                     uint64
+		diff0, diff1, diff2, diff3 uint64
+		left, right                NonMontgomeryDomainFieldElement
+	)
+
+	// Numeric ordering is not preserved in Montgomery form, so convert both
+	// operands back to their canonical representatives before comparing.
+	FromMontgomery(&left, u)
+	FromMontgomery(&right, v)
+
+	diff0, borrow = bits.Sub64(left[0], right[0], borrow)
+	diff1, borrow = bits.Sub64(left[1], right[1], borrow)
+	diff2, borrow = bits.Sub64(left[2], right[2], borrow)
+	diff3, borrow = bits.Sub64(left[3], right[3], borrow)
+
+	isZero := IsZero(diff0 | diff1 | diff2 | diff3)
+
+	return isZero | IsNonZero(borrow)
+}
+
 /*
 // Sqrt sets e to the square root of u if a quadratic residue (the square root) exists, in which case it also returns 1.
 // In all other cases, `fe = 0`, and 0 is returned.
@@ -169,26 +192,25 @@ func ReduceBytes(out *MontgomeryDomainFieldElement, input [scalarSize]byte) uint
 func FromBytesNoReduce(out *MontgomeryDomainFieldElement, input []byte) {
 	// pad to 256 bits: input will always be smaller than the modulo, so no reduction needed.
 	var pad [scalarSize]byte
-
 	copy(pad[scalarSize-len(input):], input)
 
 	ToMontgomery(out, BytesToNonMontgomery(pad))
 }
 
-// HashToFieldElement sets out to a field element from a byte string obtained by ExpandXMD, of length 48. It will always
-// be below the order, so no reduction of the input is needed.
+// ReduceWideBytes sets out to a field element from a byte string obtained by ExpandXMD, of length 48.
 // We use Frank Denis' trick, c.f. blog from Filippo: https://words.filippo.io/dispatches/wide-reduction
 // i.e. represent the value as a+b*2^192+c*2^384.
-func HashToFieldElement(out *MontgomeryDomainFieldElement, input [SecLength]byte) {
-	// We're dealing with a non-canonical form, so let's package it as such properly by extending to 64 bytes.
-	// 64 - SecLength = 16
-	in := append(make([]byte, 16, 64), input[:]...)
+func ReduceWideBytes(out *MontgomeryDomainFieldElement, input [SecLength]byte) *MontgomeryDomainFieldElement {
+	// We're dealing with a non-canonical form, so we would package it as such properly by extending to 64 bytes.
+	// But the reduction trick would make the exact last 16 bytes be only 0, so we can spare the copy and just work
+	// with the 48 bytes directly.
+	var _b MontgomeryDomainFieldElement
 
-	var _b, _c MontgomeryDomainFieldElement
-
-	FromBytesNoReduce(out, in[40:])
-	FromBytesNoReduce(&_b, in[16:40])
-	FromBytesNoReduce(&_c, in[:16])
+	FromBytesNoReduce(out, input[24:]) // 24
+	FromBytesNoReduce(&_b, input[:24]) // 24
+	// We would do FromBytesNoReduce(&_c, in[:16]) on a 64 byte slice,
+	// but since we only have 48 bytes, the 16 extra bytes are always 0,
+	// and so we can spare all operations involving _c.
 
 	// 2^192 mod (2^256 - 432420386565659656852420866394968145599) in the Montgomery domain.
 	two192 := &MontgomeryDomainFieldElement{
@@ -199,17 +221,19 @@ func HashToFieldElement(out *MontgomeryDomainFieldElement, input [SecLength]byte
 	}
 
 	// 2^384 mod (2^256 - 432420386565659656852420866394968145599) in the Montgomery domain.
-	two384 := &MontgomeryDomainFieldElement{
-		2161815027462274937,
-		647662477280039658,
-		2865435121925625427,
-		4330881270917637700,
-	}
+	// two384 := &MontgomeryDomainFieldElement{
+	// 	2161815027462274937,
+	// 	647662477280039658,
+	// 	2865435121925625427,
+	// 	4330881270917637700,
+	// }
 
 	Mul(&_b, &_b, two192) // b*2^192
-	Mul(&_c, &_c, two384) // c*2^384
+	// Mul(&_c, &_c, two384) // c*2^384.
 	Add(out, out, &_b)
-	Add(out, out, &_c)
+	// Add(out, out, &_c).
+
+	return out
 }
 
 // IsZero returns 1 if i == 0, and 0 otherwise.

@@ -546,18 +546,21 @@ func TestScalar_Equal(t *testing.T) {
 	}
 }
 
-// TestScalar_LessOrEqual verifies ordering for small values and nearby random scalars.
+// TestScalar_LessOrEqual verifies canonical ordering for edge values and adjacent representatives.
 func TestScalar_LessOrEqual(t *testing.T) {
 	zero := secp256k1.NewScalar().Zero()
 	one := secp256k1.NewScalar().One()
 	two := secp256k1.NewScalar().One().Add(one)
+	order := scalarOrderInt()
+	nMinusTwo := mustDecodeScalarBytes(t, scalarBytes(new(big.Int).Sub(order, big.NewInt(2))))
+	nMinusOne := mustDecodeScalarBytes(t, scalarBytes(new(big.Int).Sub(order, big.NewInt(1))))
 
 	if zero.LessOrEqual(one) != 1 {
-		t.Fatal("expected 0 < 1")
+		t.Fatal("expected 0 <= 1")
 	}
 
 	if one.LessOrEqual(two) != 1 {
-		t.Fatal("expected 1 < 2")
+		t.Fatal("expected 1 <= 2")
 	}
 
 	if one.LessOrEqual(zero) == 1 {
@@ -572,23 +575,24 @@ func TestScalar_LessOrEqual(t *testing.T) {
 		t.Fatal("expected 2 == 2")
 	}
 
-	s := secp256k1.NewScalar().Random()
-	r := s.Copy().Add(one)
-	sub := s.Copy().Subtract(one)
-
-	if s.LessOrEqual(r) != 1 {
-		t.Fatal("expected s < s + 1")
+	if nMinusTwo.LessOrEqual(nMinusOne) != 1 {
+		t.Fatal("expected n-2 <= n-1")
 	}
 
-	if s.LessOrEqual(sub) == 1 {
-		t.Fatal("expected s > s - 1")
+	if nMinusOne.LessOrEqual(nMinusTwo) == 1 {
+		t.Fatal("expected n-1 > n-2")
 	}
 
-	min1 := secp256k1.NewScalar().MinusOne()
-	min2 := secp256k1.NewScalar().Set(min1).Subtract(min1)
+	if nMinusOne.LessOrEqual(nMinusOne) != 1 {
+		t.Fatal("expected n-1 == n-1")
+	}
 
-	if min2.LessOrEqual(min1) != 1 {
-		t.Fatal("expected -1 < -2")
+	if zero.LessOrEqual(nMinusOne) != 1 {
+		t.Fatal("expected 0 <= n-1")
+	}
+
+	if nMinusOne.LessOrEqual(zero) == 1 {
+		t.Fatal("expected n-1 > 0")
 	}
 }
 
