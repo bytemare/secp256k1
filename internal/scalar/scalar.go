@@ -236,7 +236,7 @@ func ReduceWideBytes(out *MontgomeryDomainFieldElement, input [SecLength]byte) *
 	return out
 }
 
-// IsZero returns 1 if i == 0, and 0 otherwise.
+// IsZero returns 1 if u == 0, and 0 otherwise.
 func IsZero(u uint64) uint64 {
 	return (^IsNonZero(u)) & 1
 }

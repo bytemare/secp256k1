@@ -8,8 +8,6 @@
 # LICENSE file in the root directory of this source tree or at
 # https://spdx.org/licenses/MIT.html
 
-
-
 # Curve secpk256k1 finite field
 # p = 2^256 - 2^32 - 977
 
