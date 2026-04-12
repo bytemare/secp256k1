@@ -10,6 +10,7 @@ package secp256k1
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -76,26 +77,42 @@ func (s *Scalar) MinusOne() *Scalar {
 	return s
 }
 
-// Random sets the current Scalar to a new random Scalar and returns it.
-// The random source is crypto/rand, and this functions is guaranteed to return a non-zero Scalar.
+// Random sets the receiver to a uniformly random non-zero scalar sampled from the system CSPRNG.
 func (s *Scalar) Random() *Scalar {
 	var (
-		buf [32]byte
-		m   scalar.MontgomeryDomainFieldElement
+		buf [scalarLength]byte
+		nm  scalar.NonMontgomeryDomainFieldElement
 	)
 
-	for scalar.IsFEZero(&m) == 1 {
+	for {
 		_, _ = rand.Read(buf[:])
+		if !isValidScalar(&nm, &buf) {
+			continue
+		}
 
-		nm := scalar.BytesToNonMontgomery(buf)
-		_ = scalar.Reduce(nm)
+		scalar.ToMontgomery(&s.S, &nm)
 
-		scalar.ToMontgomery(&m, nm)
+		break
 	}
 
-	copy(s.S[:], m[:])
-
 	return s
+}
+
+// isValidScalar reports whether buf encodes a non-zero scalar below the group order.
+func isValidScalar(
+	nm *scalar.NonMontgomeryDomainFieldElement,
+	buf *[scalarLength]byte,
+) bool {
+	nm[3] = binary.BigEndian.Uint64(buf[0:8])
+	nm[2] = binary.BigEndian.Uint64(buf[8:16])
+	nm[1] = binary.BigEndian.Uint64(buf[16:24])
+	nm[0] = binary.BigEndian.Uint64(buf[24:32])
+
+	if scalar.IsZero(nm[0]|nm[1]|nm[2]|nm[3]) == 1 {
+		return false
+	}
+
+	return scalar.Reduce(nm) == 1
 }
 
 // Add sets the receiver to the sum of the input and the receiver, and returns the receiver.
