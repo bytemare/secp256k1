@@ -100,6 +100,42 @@ func (v *h2cVectors) runCiphersuite(t *testing.T) {
 	}
 }
 
+// TestHashToGroup_Regression verifies representative RO outputs without going through the JSON vector loader.
+func TestHashToGroup_Regression(t *testing.T) {
+	const dst = "QUUX-V01-CS02-with-secp256k1_XMD:SHA-256_SSWU_RO_"
+
+	tests := []struct {
+		name string
+		msg  string
+		want string
+	}{
+		{
+			name: "empty message",
+			msg:  "",
+			want: "03c1cae290e291aee617ebaef1be6d73861479c48b841eaba9b7b5852ddfeb1346",
+		},
+		{
+			name: "short ascii",
+			msg:  "abc",
+			want: "023377e01eab42db296b512293120c6cee72b6ecf9f9205760bd9ff11fb3cb2c4b",
+		},
+		{
+			name: "hex-like ascii",
+			msg:  "abcdef0123456789",
+			want: "02bac54083f293f1fe08e4a70137260aa90783a5cb84d3f35848b324d0674b0e3a",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := secp256k1.HashToGroup([]byte(test.msg), []byte(dst))
+			if got.Hex() != test.want {
+				t.Fatalf("unexpected HashToGroup output.\n\twant: %q\n\tgot : %q", test.want, got.Hex())
+			}
+		})
+	}
+}
+
 // TestHashToGroupVectors verifies HashToGroup and EncodeToGroup against the bundled vectors.
 func TestHashToGroupVectors(t *testing.T) {
 	if err := filepath.Walk(hashToCurveVectorsFileLocation,

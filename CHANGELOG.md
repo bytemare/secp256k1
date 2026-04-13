@@ -12,4 +12,6 @@ This project follows [Semantic Versioning](https://semver.org/). Contributors sh
 
 ### Changed
 
-- Documentation refresh for architecture, security model, release guidance, and roadmap consistency.
+- Fixed Multiply with better constant-time conditional swaps.
+- Fixed HashToGroup with pull SSWU output from the ISO group before adding to avoid super-rare edge case of x2 == x1.
+- Added some more tests.

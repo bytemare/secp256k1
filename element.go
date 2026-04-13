@@ -118,14 +118,11 @@ func (e *Element) Subtract(element *Element) *Element {
 	return e.add(q)
 }
 
-// Multiply sets the receiver to the Scalar multiplication of the receiver with the given Scalar, and returns it.
+// Multiply sets e to the Scalar multiplication with the given Scalar in constant time,
+// and returns e.
 func (e *Element) Multiply(scalar *Scalar) *Element {
 	if scalar == nil {
 		return e.Identity()
-	}
-
-	if scalar.IsOne() {
-		return e
 	}
 
 	r0 := newElement()
@@ -133,13 +130,11 @@ func (e *Element) Multiply(scalar *Scalar) *Element {
 	bits := scalar.Bits()
 
 	for i := 255; i >= 0; i-- {
-		if bits[i] == 0 {
-			r1.Add(r0)
-			r0.Double()
-		} else {
-			r0.Add(r1)
-			r1.Double()
-		}
+		bit := uint64(bits[i])
+		cSwapElements(bit, r0, r1)
+		r1.Add(r0)
+		r0.Double()
+		cSwapElements(bit, r0, r1)
 	}
 
 	e.set(r0)
@@ -365,14 +360,34 @@ func (e *Element) set(element *Element) *Element {
 	return e
 }
 
+// cSelect sets e to u when cond == 0, and to v otherwise, in constant-time.
+func (e *Element) cSelect(cond uint64, u, v *Element) *Element {
+	e.x.CMove(cond, &u.x, &v.x)
+	e.y.CMove(cond, &u.y, &v.y)
+	e.z.CMove(cond, &u.z, &v.z)
+
+	return e
+}
+
+// cSwapElements swaps left and right when cond == 1, and leaves them unchanged otherwise.
+func cSwapElements(cond uint64, left, right *Element) {
+	leftX, leftY, leftZ := left.x, left.y, left.z
+
+	left.cSelect(cond, left, right)
+	right.x.CMove(cond, &right.x, &leftX)
+	right.y.CMove(cond, &right.y, &leftY)
+	right.z.CMove(cond, &right.z, &leftZ)
+}
+
 // using this outlining saves an allocation...
 func (e *Element) fillUncompressed(in *[elementLengthUncompressed]byte) []byte {
 	affine := e.affine()
-	out := append(in[:0], encodingPrefixUncompressed) //nolint:gocritic
-	out = append(out, affine.x.Bytes()...)
-	out = append(out, affine.y.Bytes()...)
 
-	return out
+	in[0] = encodingPrefixUncompressed
+	copy(in[1:33], affine.x.Bytes())
+	copy(in[33:65], affine.y.Bytes())
+
+	return in[:]
 }
 
 func (e *Element) doubleProjectiveComplete(u *Element) *Element {
