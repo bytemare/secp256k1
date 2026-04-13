@@ -24,11 +24,13 @@ const (
 	encodingPrefixUncompressed = 0x04
 )
 
-// errParamInvalidPointEncoding indicates an invalid point encoding has been provided.
-var errParamInvalidPointEncoding = errors.New("invalid point encoding")
+var (
+	// ErrParamInvalidPointEncoding indicates an invalid point encoding has been provided.
+	ErrParamInvalidPointEncoding = errors.New("invalid point encoding")
 
-// errParamNilElement indicates a forbidden nil element input.
-var errParamNilElement = errors.New("nil element")
+	// ErrParamNilElement indicates a forbidden nil Element.
+	ErrParamNilElement = errors.New("nil element")
+)
 
 // Element implements the Element interface for the secp256k1 group element.
 type Element struct {
@@ -95,7 +97,7 @@ func (e *Element) Identity() *Element {
 // If element is nil, Add panics.
 func (e *Element) Add(element *Element) *Element {
 	if element == nil {
-		panic(errParamNilElement)
+		panic(ErrParamNilElement)
 	}
 
 	return e.addProjectiveComplete(e, element)
@@ -119,7 +121,7 @@ func (e *Element) Negate() *Element {
 // If element is nil, Subtract panics.
 func (e *Element) Subtract(element *Element) *Element {
 	if element == nil {
-		panic(errParamNilElement)
+		panic(ErrParamNilElement)
 	}
 
 	q := element.copy().negate()
@@ -155,7 +157,7 @@ func (e *Element) Multiply(scalar *Scalar) *Element {
 // If element is nil, Equal panics.
 func (e *Element) Equal(element *Element) int {
 	if element == nil {
-		panic(errParamNilElement)
+		panic(ErrParamNilElement)
 	}
 
 	return e.isEqual(element)
@@ -170,7 +172,7 @@ func (e *Element) IsIdentity() bool {
 // If element is nil, Set panics.
 func (e *Element) Set(element *Element) *Element {
 	if element == nil {
-		panic(errParamNilElement)
+		panic(ErrParamNilElement)
 	}
 
 	return e.set(element)
@@ -220,19 +222,19 @@ func Secp256Polynomial(y, x *field.Element) {
 func (e *Element) DecodeCoordinates(x, y [32]byte) error {
 	fex, reduced := field.New().FromBytesWithReduce(x)
 	if reduced == 0 {
-		return errParamInvalidPointEncoding
+		return ErrParamInvalidPointEncoding
 	}
 
 	fey, reduced := field.New().FromBytesWithReduce(y)
 	if reduced == 0 {
-		return errParamInvalidPointEncoding
+		return ErrParamInvalidPointEncoding
 	}
 
 	var y2 field.Element
 	Secp256Polynomial(&y2, fex)
 
 	if y2.Equals(field.New().Square(fey)) != 1 {
-		return errParamInvalidPointEncoding
+		return ErrParamInvalidPointEncoding
 	}
 
 	e.x.Set(fex)
@@ -246,11 +248,11 @@ func (e *Element) DecodeCoordinates(x, y [32]byte) error {
 // on failure.
 func (e *Element) DecodeCompressed(data []byte) error {
 	if len(data) != elementLengthCompressed {
-		return errParamInvalidPointEncoding
+		return ErrParamInvalidPointEncoding
 	}
 
 	if data[0] != encodingPrefixEven && data[0] != encodingPrefixOdd {
-		return errParamInvalidPointEncoding
+		return ErrParamInvalidPointEncoding
 	}
 
 	/*
@@ -262,7 +264,7 @@ func (e *Element) DecodeCompressed(data []byte) error {
 	// Set x in the field, and return an error if it's not reduced.
 	x := field.New()
 	if _, reduced := x.FromBytesWithReduce([32]byte(data[1:])); reduced == 0 {
-		return errParamInvalidPointEncoding
+		return ErrParamInvalidPointEncoding
 	}
 
 	var y2 field.Element
@@ -271,7 +273,7 @@ func (e *Element) DecodeCompressed(data []byte) error {
 	y, isSquare := field.New().SqrtRatio(&y2, field.New().One())
 	if isSquare != 1 {
 		// Point is not on curve
-		return errParamInvalidPointEncoding
+		return ErrParamInvalidPointEncoding
 	}
 
 	cond := y.Sgn0() ^ uint64(data[0]&1)
@@ -288,11 +290,11 @@ func (e *Element) DecodeCompressed(data []byte) error {
 // on failure.
 func (e *Element) DecodeUncompressed(data []byte) error {
 	if len(data) != elementLengthUncompressed {
-		return errParamInvalidPointEncoding
+		return ErrParamInvalidPointEncoding
 	}
 
 	if data[0] != encodingPrefixUncompressed {
-		return errParamInvalidPointEncoding
+		return ErrParamInvalidPointEncoding
 	}
 
 	return e.DecodeCoordinates([32]byte(data[1:33]), [32]byte(data[33:]))
@@ -303,7 +305,7 @@ func (e *Element) Decode(data []byte) error {
 	switch len(data) {
 	case elementLengthIdentity:
 		if data[0] != encodingPrefixIdentity {
-			return errParamInvalidPointEncoding
+			return ErrParamInvalidPointEncoding
 		}
 
 		e.Identity()
@@ -314,7 +316,7 @@ func (e *Element) Decode(data []byte) error {
 	case elementLengthUncompressed:
 		return e.DecodeUncompressed(data)
 	default:
-		return errParamInvalidPointEncoding
+		return ErrParamInvalidPointEncoding
 	}
 }
 

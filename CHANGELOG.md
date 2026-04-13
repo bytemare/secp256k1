@@ -17,3 +17,5 @@ This project follows [Semantic Versioning](https://semver.org/). Contributors sh
 - Added some more tests.
 - Changed `HashToScalar`, `HashToGroup`, and `EncodeToGroup` to return errors for empty DST inputs instead of panicking.
 - Standardized public nil-input handling for element and scalar mutators/comparators to panic consistently.
+- Exported `ErrParamNilElement` for element nil-input contract checks.
+- Exported `ErrParamInvalidPointEncoding` for element decode contract checks.

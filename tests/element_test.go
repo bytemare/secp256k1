@@ -161,7 +161,7 @@ func TestElementSet_nil(t *testing.T) {
 	e := secp256k1.Base()
 	cpy := e.Copy()
 
-	if ok, err := expectPanic(nil, func() {
+	if ok, err := expectPanic(secp256k1.ErrParamNilElement, func() {
 		e.Set(nil)
 	}); !ok {
 		t.Fatal(err)
@@ -216,7 +216,7 @@ func TestElement_EncodedLength(t *testing.T) {
 
 // TestElement_Decode_OutOfBounds verifies decoding rejects invalid point encodings and coordinates.
 func TestElement_Decode_OutOfBounds(t *testing.T) {
-	expected := errors.New("invalid point encoding")
+	expected := secp256k1.ErrParamInvalidPointEncoding
 
 	// Set x and y to zero
 	x := big.NewInt(0)
@@ -226,7 +226,7 @@ func TestElement_Decode_OutOfBounds(t *testing.T) {
 	encoded[0] = byte(2 | y.Bit(0)&1)
 	x.FillBytes(encoded[1:])
 
-	if err := secp256k1.NewElement().Decode(encoded[:]); err == nil || err.Error() != expected.Error() {
+	if err := secp256k1.NewElement().Decode(encoded[:]); !errors.Is(err, expected) {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 
@@ -242,7 +242,7 @@ func TestElement_Decode_OutOfBounds(t *testing.T) {
 	encoded[0] = byte(2 | y.Bit(0)&1)
 	x.FillBytes(encoded[1:])
 
-	if err := secp256k1.NewElement().Decode(encoded[:]); err == nil || err.Error() != expected.Error() {
+	if err := secp256k1.NewElement().Decode(encoded[:]); !errors.Is(err, expected) {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 }
@@ -252,7 +252,7 @@ func TestElement_Equal(t *testing.T) {
 	base := secp256k1.Base()
 	base2 := secp256k1.Base()
 
-	if ok, err := expectPanic(nil, func() {
+	if ok, err := expectPanic(secp256k1.ErrParamNilElement, func() {
 		base.Equal(nil)
 	}); !ok {
 		t.Fatal(err)
@@ -274,7 +274,7 @@ func TestElement_Add(t *testing.T) {
 	base := secp256k1.Base()
 	cpy := base.Copy()
 
-	if ok, err := expectPanic(nil, func() {
+	if ok, err := expectPanic(secp256k1.ErrParamNilElement, func() {
 		cpy.Add(nil)
 	}); !ok {
 		t.Fatal(err)
@@ -377,7 +377,7 @@ func TestElement_Substract(t *testing.T) {
 	base := secp256k1.Base()
 	cpy := base.Copy()
 
-	if ok, err := expectPanic(nil, func() {
+	if ok, err := expectPanic(secp256k1.ErrParamNilElement, func() {
 		base.Subtract(nil)
 	}); !ok {
 		t.Fatal(err)
@@ -464,13 +464,13 @@ func TestElement_Identity(t *testing.T) {
 	var invalidEncoding [32]byte
 	invalidEncoding[0] = 0x02
 
-	if err := e.Decode(invalidEncoding[:]); err == nil || err.Error() != "invalid point encoding" {
+	if err := e.Decode(invalidEncoding[:]); !errors.Is(err, secp256k1.ErrParamInvalidPointEncoding) {
 		t.Fatalf("expected specific error on decoding identity, got %q", err)
 	}
 
 	invalidEncoding[0] = 0x03
 
-	if err := e.Decode(invalidEncoding[:]); err == nil || err.Error() != "invalid point encoding" {
+	if err := e.Decode(invalidEncoding[:]); !errors.Is(err, secp256k1.ErrParamInvalidPointEncoding) {
 		t.Fatalf("expected specific error on decoding identity, got %q", err)
 	}
 
