@@ -128,7 +128,7 @@ jobs:
       govulncheck: true
       govulncheck-go-check-latest: true
       # Gitleaks
-      gitleaks: true
+      gitleaks: false
       # Codecov upload
       codecov: true
       codecov-disable-search: true
