@@ -645,22 +645,29 @@ func testModPow(base, exp *secp256k1.Scalar, basei, expi, mod *big.Int) error {
 
 // TestScalar_Pow verifies exponentiation against algebraic identities and big.Int modular exponentiation.
 func TestScalar_Pow(t *testing.T) {
-	// s^nil = 1
-	s := secp256k1.NewScalar().Random()
-	if s.Pow(nil).Equal(secp256k1.NewScalar().One()) != 1 {
-		t.Fatal("expected s**nil = 1")
-	}
-
 	// s^0 = 1
-	s = secp256k1.NewScalar().Random()
+	s := secp256k1.NewScalar().Random()
 	zero := secp256k1.NewScalar().Zero()
 	if s.Pow(zero).Equal(secp256k1.NewScalar().One()) != 1 {
 		t.Fatal("expected s**0 = 1")
 	}
 
+	// 0^0 = 1
+	s.Zero()
+	if s.Pow(zero).Equal(secp256k1.NewScalar().One()) != 1 {
+		t.Fatal("expected 0**0 = 1")
+	}
+
+	// 0^5 = 0
+	s.Zero()
+	exp := secp256k1.NewScalar().SetUInt64(5)
+	if !s.Pow(exp).IsZero() {
+		t.Fatalf("expected 0**5 = 0. got %v", s.Hex())
+	}
+
 	// s^1 = s
 	s = secp256k1.NewScalar().Random()
-	exp := secp256k1.NewScalar().One()
+	exp = secp256k1.NewScalar().One()
 	if s.Copy().Pow(exp).Equal(s) != 1 {
 		t.Fatal("expected s**1 = s")
 	}
@@ -686,8 +693,7 @@ func TestScalar_Pow(t *testing.T) {
 
 	// random^3
 	s = secp256k1.NewScalar().Random()
-	s3 = s.Copy().Multiply(s)
-	s3.Multiply(s)
+	s3 = s.Copy().Multiply(s).Multiply(s)
 	exp.SetUInt64(3)
 
 	if s.Pow(exp).Equal(s3) != 1 {
@@ -747,6 +753,16 @@ func TestScalar_Pow(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// random^(n-1)
+	s.Random()
+	exp.MinusOne()
+	iBase.SetBytes(s.Encode())
+	iExp.Sub(new(big.Int).Set(order), big.NewInt(1))
+
+	if err := testModPow(s, exp, iBase, iExp, order); err != nil {
+		t.Fatal(err)
+	}
+
 	// random^random
 	s.Random()
 	exp.Random()
@@ -757,39 +773,29 @@ func TestScalar_Pow(t *testing.T) {
 	if err := testModPow(s, exp, iBase, iExp, order); err != nil {
 		t.Fatal(err)
 	}
-	/*
 
-					bad
-							scalar_test.go:387: e3e1cfd05ed144d6be4df974d34bcb8d1858c8d95e9c7da2022a95f4e6f874e7
-							    scalar_test.go:388: a223866418ea560c12ee6baed4062d5307b6f390f621c887e015c3769eba95e5
-							    scalar_test.go:389: 141c46ee9029a535aeb7c3ded789c62a9839856e98b5a3e690fcbf46ab0469fd
-							    scalar_test.go:390: 24c451d1833a4be5130db3b91b700bb1c6c24db07694f1a4c926ad5fa35afa22
+	// aliasing: s^s
+	s.Random()
+	original := s.Copy()
+	iBase.SetBytes(original.Encode())
+	iExp.SetBytes(original.Encode())
+	aliasResult := scalarBytes(new(big.Int).Exp(iBase, iExp, order))
+	s.Pow(s)
 
-						scalar_test.go:392: acc440048a42c74b137a260e6665500c36736bf9ad2b44903ec91f4e00e7c4ed
-						    scalar_test.go:393: d98c112c47ba1fa31d16a3aa8999bbae5ee154b5778118e4c6354de01e3e6693
-						    scalar_test.go:394: 3d38f93088bc9359787dc540614c9f51002024473917cdf00c6686154e27d611
-						    scalar_test.go:395: a7d0630f9612566c5a1a8c98a2eaad7d6828d9e27ebff1fa9cfd275408570970
-					good
-					scalar_test.go:377: c1dc969f8e2c57c7bd500c96cf2b75ddbe24ec181a55b88e9097a1e5c24234aa
-					    scalar_test.go:378: 77167ac354f5023371848130cd0a7983de8497334c902c9aac8266c442a43be5
-					    scalar_test.go:379: aa5fdf621b226987414d2d36e47899bdbd76b56168f5f5903402f31ba0e0aa39
-					    scalar_test.go:380: aa5fdf621b226987414d2d36e47899bdbd76b56168f5f5903402f31ba0e0aa39
+	if !bytes.Equal(s.Encode(), aliasResult) {
+		t.Fatalf("expected %v, got %v", hex.EncodeToString(aliasResult), s.Hex())
+	}
+}
 
-					scalar_test.go:377: 70dadd1654ecf62e65dcce9d606438f8723defe60edbef38bbad993ce52d5b48
-				    scalar_test.go:378: 2244fc2ca53ecfd9a78bd6361eb2d3746f1092384dffd8a3b78a9b203123c703
-				    scalar_test.go:379: db8c4b1636ae4b4e2a4527505c8d7eb8c3480fa6374f51308368e59f09e496fc
-				    scalar_test.go:380: db8c4b1636ae4b4e2a4527505c8d7eb8c3480fa6374f51308368e59f09e496fc
+// TestScalar_Pow_nil verifies Pow panics on nil exponent input.
+func TestScalar_Pow_nil(t *testing.T) {
+	s := secp256k1.NewScalar().Random()
 
-			scalar_test.go:377: 41d230446a4b86ff933e9acf485591bb030847c7b8400a79cd5eff63438454d2
-			    scalar_test.go:378: 3b43aec377712a550f2f65b5f51aeaa853962c985f5aa7c31edb62709cff55ba
-			    scalar_test.go:379: 01274da74324bbf4d5046700b4f75ad9c059d77d7d2719e4d4d4b73a96cfccc8
-			    scalar_test.go:380: 01274da74324bbf4d5046700b4f75ad9c059d77d7d2719e4d4d4b73a96cfccc8
-
-		scalar_test.go:377: 8d33245e2141894370f6683406dc897d61e7b518147c98c961b0c1da06d03a86
-		    scalar_test.go:378: ca52beef809c8071aa3d8194efe4662397ec095a75a662e2fad78f15d2bd3f16
-		    scalar_test.go:379: 0f4b9bc88501fde1674b58b78ffa5e87af3ee5f4a5d2ce4caa3824b9b5496c3f
-		    scalar_test.go:380: 40cf80e7e6bc0f071608dadd241cc0f1c895a77608c08dad485b0c4db170d067
-	*/
+	if ok, err := expectPanic(secp256k1.ErrParamNilScalar, func() {
+		s.Pow(nil)
+	}); !ok {
+		t.Fatal(err)
+	}
 }
 
 // TestScalar_Invert verifies inversion is consistent with multiplication and squaring.
