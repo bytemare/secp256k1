@@ -439,27 +439,28 @@ func (e *Element) affine() *Element {
 	return n
 }
 
+// DEPRECATED
 // addAffine3Iso sets e = v + e and returns p, using affine coordinates on secp256k1 3-ISO, useful to optimize the point
 // addition in map-to-curve. We use the generic add because the others are tailored for a = 0 and b = 7.
 // Setting e = v + e allows small optimisations using fewer variables and fewer copies.
-func (e *Element) addAffine3Iso2(v *Element) *Element {
-	t0 := field.New().Subtract(&e.y, &v.y) // (y2-y1)
-	l := field.New().Subtract(&e.x, &v.x)  // (x2-x1)
-	l.Invert(*l)                           // 1/(x2-x1)
-	l.Multiply(t0, l)                      // l = (y2-y1)/(x2-x1)
-
-	t0.Square(l)           // l^2
-	t0.Subtract(t0, &v.x)  // l^2-x1
-	e.x.Subtract(t0, &e.x) // x3 = l^2-x1-x2
-
-	t0.Subtract(&v.x, &e.x) // x1-x3
-	t0.Multiply(t0, l)      // l(x1-x3)
-	e.y.Subtract(t0, &v.y)  // y3 = l(x1-x3)-y1
-
-	// No need to set Z to 1 here because it won't be used before being set in IsogenySecp256k13iso anyway.
-
-	return e
-}
+// func (e *Element) addAffine3Iso2(v *Element) *Element {
+// 	t0 := field.New().Subtract(&e.y, &v.y) // (y2-y1)
+// 	l := field.New().Subtract(&e.x, &v.x)  // (x2-x1)
+// 	l.Invert(*l)                           // 1/(x2-x1)
+// 	l.Multiply(t0, l)                      // l = (y2-y1)/(x2-x1)
+//
+// 	t0.Square(l)           // l^2
+// 	t0.Subtract(t0, &v.x)  // l^2-x1
+// 	e.x.Subtract(t0, &e.x) // x3 = l^2-x1-x2
+//
+// 	t0.Subtract(&v.x, &e.x) // x1-x3
+// 	t0.Multiply(t0, l)      // l(x1-x3)
+// 	e.y.Subtract(t0, &v.y)  // y3 = l(x1-x3)-y1
+//
+// 	// No need to set Z to 1 here because it won't be used before being set in IsogenySecp256k13iso anyway.
+//
+// 	return e
+// }.
 
 // addProjectiveComplete implements algorithm 7 from "Complete addition formulas for prime order elliptic curve"
 // by Joost Renes, Craig Costello, and Lejla Batina (https://eprint.iacr.org/2015/1060.pdf), for a cost of 12M+2m3b+19a.
