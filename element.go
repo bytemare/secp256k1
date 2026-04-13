@@ -154,6 +154,10 @@ func (e *Element) Multiply(scalar *Scalar) *Element {
 // Equal returns 1 if the elements are equivalent, and 0 otherwise.
 // If element is nil, Equal panics.
 func (e *Element) Equal(element *Element) int {
+	if element == nil {
+		panic(errParamNilElement)
+	}
+
 	return e.isEqual(element)
 }
 
@@ -165,6 +169,10 @@ func (e *Element) IsIdentity() bool {
 // Set sets the receiver to the value of the argument, and returns the receiver.
 // If element is nil, Set panics.
 func (e *Element) Set(element *Element) *Element {
+	if element == nil {
+		panic(errParamNilElement)
+	}
+
 	return e.set(element)
 }
 
@@ -344,10 +352,6 @@ func (e *Element) negate() *Element {
 //
 // We verify whether the scales provided by the Zs represent the same point.
 func (e *Element) isEqual(u *Element) int {
-	if u == nil {
-		panic(errParamNilElement)
-	}
-
 	// x
 	x1z2 := field.New().Multiply(&e.x, &u.z)
 	x2z1 := field.New().Multiply(&u.x, &e.z)
@@ -368,10 +372,6 @@ func (e *Element) copy() *Element {
 }
 
 func (e *Element) set(element *Element) *Element {
-	if element == nil {
-		panic(errParamNilElement)
-	}
-
 	e.x.Set(&element.x)
 	e.y.Set(&element.y)
 	e.z.Set(&element.z)
