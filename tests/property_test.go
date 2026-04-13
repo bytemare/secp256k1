@@ -58,7 +58,7 @@ func referenceMultiply(point *secp256k1.Element, scalar *secp256k1.Scalar) *secp
 	addend := point.Copy()
 	bits := scalar.Bits()
 
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		if bits[i] == 1 {
 			result.Add(addend)
 		}

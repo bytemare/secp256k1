@@ -14,7 +14,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/bytemare/secp256k1/internal/scalar"
 )
@@ -176,61 +175,39 @@ func (s *Scalar) Bits() [256]uint8 {
 	return out
 }
 
-// Pow sets s to s^t modulo the group order, and returns s. If t is nil or equals 0, s is set to 1.
-// Now using variable time big.Int because for some reason I can't get the constant time algorithm to work on Fiat.
+// Pow sets s to s^t modulo the group order in constant time, and returns s.
+// If t is nil, Pow panics.
 func (s *Scalar) Pow(t *Scalar) *Scalar {
-	if t == nil || t.IsZero() {
-		return s.One()
+	if t == nil {
+		panic(ErrParamNilScalar)
 	}
 
-	if t.IsOne() {
-		return s
+	var (
+		base     scalar.MontgomeryDomainFieldElement
+		exponent scalar.NonMontgomeryDomainFieldElement
+		r0       scalar.MontgomeryDomainFieldElement
+		r1       scalar.MontgomeryDomainFieldElement
+		prod     scalar.MontgomeryDomainFieldElement
+		sq       scalar.MontgomeryDomainFieldElement
+	)
+
+	copy(base[:], s.S[:])
+	scalar.FromMontgomery(&exponent, &t.S)
+	scalar.SetOne(&r0)
+	copy(r1[:], base[:])
+
+	for i := 255; i >= 0; i-- {
+		bit := (exponent[i/64] >> (i % 64)) & 1
+
+		scalar.CSwap(bit, &r0, &r1)
+		scalar.Mul(&prod, &r0, &r1)
+		scalar.Square(&sq, &r0)
+		copy(r1[:], prod[:])
+		copy(r0[:], sq[:])
+		scalar.CSwap(bit, &r0, &r1)
 	}
 
-	order := new(big.Int).SetBytes(Order())
-	bigS := big.NewInt(0).SetBytes(s.Encode())
-	bigT := big.NewInt(0).SetBytes(t.Encode())
-	bigS.Exp(bigS, bigT, order)
-
-	// If necessary, build a buffer of right size, so it gets correctly interpreted.
-	bytes := bigS.Bytes()
-
-	if l := scalarLength - len(bytes); l > 0 {
-		buf := make([]byte, l, scalarLength)
-		buf = append(buf, bytes...)
-		bytes = buf
-	}
-
-	if err := s.Decode(bytes); err != nil {
-		panic(err)
-	}
-
-	/*
-		The following was an attempt for constant time, but for some reason it doesn't work.
-
-			s1 := new(Scalar).One()
-			s2 := s.Copy()
-			bits := t.Bits()
-			var i int
-			for i = 255; bits[i] == 0; i-- {
-			}
-
-			for ; i >= 0; i-- {
-				if bits[i] == 0 {
-					s2.Multiply(s1)
-					s1.Square()
-				} else {
-					s1.Multiply(s2)
-					s2.Square()
-				}
-
-			}
-
-			s.Set(s1)
-
-			return s
-
-	*/
+	copy(s.S[:], r0[:])
 
 	return s
 }

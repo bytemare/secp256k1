@@ -179,6 +179,14 @@ func CMove(out *MontgomeryDomainFieldElement, c uint64, u, v *MontgomeryDomainFi
 	Selectznz((*[4]uint64)(out), uint1(c), (*[4]uint64)(u), (*[4]uint64)(v))
 }
 
+// CSwap swaps left and right when c == 1, and leaves them unchanged otherwise.
+func CSwap(c uint64, left, right *MontgomeryDomainFieldElement) {
+	originalLeft := *left
+
+	CMove(left, c, left, right)
+	CMove(right, c, right, &originalLeft)
+}
+
 // ReduceBytes sets out to a reduction of input.
 func ReduceBytes(out *MontgomeryDomainFieldElement, input [scalarSize]byte) uint64 {
 	nm := BytesToNonMontgomery(input)
