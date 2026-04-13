@@ -27,6 +27,9 @@ const (
 // errParamInvalidPointEncoding indicates an invalid point encoding has been provided.
 var errParamInvalidPointEncoding = errors.New("invalid point encoding")
 
+// errParamNilElement indicates a forbidden nil element input.
+var errParamNilElement = errors.New("nil element")
+
 // Element implements the Element interface for the secp256k1 group element.
 type Element struct {
 	_       disallowEqual
@@ -89,8 +92,13 @@ func (e *Element) Identity() *Element {
 }
 
 // Add sets the receiver to the sum of the input and the receiver, and returns the receiver.
+// If element is nil, Add panics.
 func (e *Element) Add(element *Element) *Element {
-	return e.add(element)
+	if element == nil {
+		panic(errParamNilElement)
+	}
+
+	return e.addProjectiveComplete(e, element)
 }
 
 // Double sets the receiver to its double, and returns it.
@@ -108,21 +116,22 @@ func (e *Element) Negate() *Element {
 }
 
 // Subtract subtracts the input from the receiver, and returns the receiver.
+// If element is nil, Subtract panics.
 func (e *Element) Subtract(element *Element) *Element {
 	if element == nil {
-		return e
+		panic(errParamNilElement)
 	}
 
 	q := element.copy().negate()
 
-	return e.add(q)
+	return e.addProjectiveComplete(e, q)
 }
 
 // Multiply sets e to the Scalar multiplication with the given Scalar in constant time,
-// and returns e.
+// and returns e. If scalar is nil, Multiply panics.
 func (e *Element) Multiply(scalar *Scalar) *Element {
 	if scalar == nil {
-		return e.Identity()
+		panic(ErrParamNilScalar)
 	}
 
 	r0 := newElement()
@@ -132,7 +141,7 @@ func (e *Element) Multiply(scalar *Scalar) *Element {
 	for i := 255; i >= 0; i-- {
 		bit := uint64(bits[i])
 		cSwapElements(bit, r0, r1)
-		r1.Add(r0)
+		r1.addProjectiveComplete(r1, r0)
 		r0.Double()
 		cSwapElements(bit, r0, r1)
 	}
@@ -143,6 +152,7 @@ func (e *Element) Multiply(scalar *Scalar) *Element {
 }
 
 // Equal returns 1 if the elements are equivalent, and 0 otherwise.
+// If element is nil, Equal panics.
 func (e *Element) Equal(element *Element) int {
 	return e.isEqual(element)
 }
@@ -153,6 +163,7 @@ func (e *Element) IsIdentity() bool {
 }
 
 // Set sets the receiver to the value of the argument, and returns the receiver.
+// If element is nil, Set panics.
 func (e *Element) Set(element *Element) *Element {
 	return e.set(element)
 }
@@ -333,6 +344,10 @@ func (e *Element) negate() *Element {
 //
 // We verify whether the scales provided by the Zs represent the same point.
 func (e *Element) isEqual(u *Element) int {
+	if u == nil {
+		panic(errParamNilElement)
+	}
+
 	// x
 	x1z2 := field.New().Multiply(&e.x, &u.z)
 	x2z1 := field.New().Multiply(&u.x, &e.z)
@@ -353,6 +368,10 @@ func (e *Element) copy() *Element {
 }
 
 func (e *Element) set(element *Element) *Element {
+	if element == nil {
+		panic(errParamNilElement)
+	}
+
 	e.x.Set(&element.x)
 	e.y.Set(&element.y)
 	e.z.Set(&element.z)
@@ -517,12 +536,4 @@ func (e *Element) addProjectiveComplete(u, v *Element) *Element {
 	e.z.Set(z3)
 
 	return e
-}
-
-func (e *Element) add(element *Element) *Element {
-	if element == nil {
-		return e
-	}
-
-	return e.addProjectiveComplete(e, element)
 }

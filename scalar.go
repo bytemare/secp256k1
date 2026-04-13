@@ -115,9 +115,10 @@ func isValidScalar(
 }
 
 // Add sets the receiver to the sum of the input and the receiver, and returns the receiver.
+// If t is nil, Add panics.
 func (s *Scalar) Add(t *Scalar) *Scalar {
 	if t == nil {
-		return s
+		panic(ErrParamNilScalar)
 	}
 
 	scalar.Add(&s.S, &s.S, &t.S)
@@ -126,9 +127,10 @@ func (s *Scalar) Add(t *Scalar) *Scalar {
 }
 
 // Subtract subtracts the input from the receiver, and returns the receiver.
+// If t is nil, Subtract panics.
 func (s *Scalar) Subtract(t *Scalar) *Scalar {
 	if t == nil {
-		return s
+		panic(ErrParamNilScalar)
 	}
 
 	scalar.Sub(&s.S, &s.S, &t.S)
@@ -137,9 +139,10 @@ func (s *Scalar) Subtract(t *Scalar) *Scalar {
 }
 
 // Multiply multiplies the receiver with the input, and returns the receiver.
+// If t is nil, Multiply panics.
 func (s *Scalar) Multiply(t *Scalar) *Scalar {
 	if t == nil {
-		return s.Zero()
+		panic(ErrParamNilScalar)
 	}
 
 	scalar.Mul(&s.S, &s.S, &t.S)
@@ -213,16 +216,22 @@ func (s *Scalar) Pow(t *Scalar) *Scalar {
 }
 
 // Equal returns 1 if the scalars are equal, and 0 otherwise.
+// If t is nil, Equal panics.
 func (s *Scalar) Equal(t *Scalar) int {
 	if t == nil {
-		return 0
+		panic(ErrParamNilScalar)
 	}
 
 	return int(scalar.Equal(&s.S, &t.S))
 }
 
 // LessOrEqual returns 1 if s <= t and 0 otherwise, using canonical integer ordering on encoded scalars in [0, n-1].
+// If t is nil, LessOrEqual panics.
 func (s *Scalar) LessOrEqual(t *Scalar) uint64 {
+	if t == nil {
+		panic(ErrParamNilScalar)
+	}
+
 	return scalar.LessOrEqual(&s.S, &t.S)
 }
 
@@ -242,9 +251,10 @@ func (s *Scalar) Copy() *Scalar {
 }
 
 // Set sets the receiver to the value of the argument Scalar, and returns the receiver.
+// If t is nil, Set panics.
 func (s *Scalar) Set(t *Scalar) *Scalar {
 	if t == nil {
-		return s.Zero()
+		panic(ErrParamNilScalar)
 	}
 
 	return s.set(&t.S)

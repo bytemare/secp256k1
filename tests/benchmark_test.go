@@ -130,52 +130,30 @@ func BenchmarkScalarLessOrEqual(b *testing.B) {
 
 // BenchmarkHashToScalar measures hash-to-scalar expansion and reduction.
 func BenchmarkHashToScalar(b *testing.B) {
-	/*
-												BenchmarkHashToScalar
-												BenchmarkHashToScalar-8   	 2247852	       487.8 ns/op	     582 B/op	      14 allocs/op
-											BenchmarkHashToScalar-8   	 2515420	       458.8 ns/op	     582 B/op	      14 allocs/op
-										BenchmarkHashToScalar-8   	 2427625	       477.0 ns/op	     582 B/op	      14 allocs/op
-									BenchmarkHashToScalar-8   	 2666864	       443.1 ns/op	     582 B/op	      14 allocs/op
-								BenchmarkHashToScalar-8   	 2397423	       460.2 ns/op	     582 B/op	      14 allocs/op
-							BenchmarkHashToScalar-8   	 2559330	       485.6 ns/op	     582 B/op	      14 allocs/op
-						BenchmarkHashToScalar-8   	 2549686	       457.0 ns/op	     582 B/op	      14 allocs/op
-
-					BenchmarkHashToScalar-8   	 2569978	       468.6 ns/op	     582 B/op	      14 allocs/op
-				BenchmarkHashToScalar-8   	 2435308	       495.4 ns/op	     582 B/op	      14 allocs/op
-			BenchmarkHashToScalar-8   	 2314081	       488.2 ns/op	     582 B/op	      14 allocs/op
-		BenchmarkHashToScalar-8   	 2286890	       534.1 ns/op	     582 B/op	      14 allocs/op
-
-
-
-	*/
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	var s *secp256k1.Scalar
 
 	for range b.N {
-		s = secp256k1.HashToScalar(benchmarkHashInput, benchmarkHashDST)
+		var err error
+		s, err = secp256k1.HashToScalar(benchmarkHashInput, benchmarkHashDST)
+		if err != nil {
+			b.Fatal(err)
+		}
+
 		_ = s
 	}
 }
 
 // BenchmarkHashToGroup measures random-oracle hash-to-curve.
 func BenchmarkHashToGroup(b *testing.B) {
-	/*
-							BenchmarkHashToGroup-8   	   31996	     35309 ns/op	     726 B/op	      16 allocs/op
-						BenchmarkHashToGroup-8   	   34066	     34319 ns/op	     726 B/op	      16 allocs/op
-					BenchmarkHashToGroup-8   	   30075	     36263 ns/op	     726 B/op	      16 allocs/op
-				BenchmarkHashToGroup-8   	   34536	     34426 ns/op	     726 B/op	      16 allocs/op
-
-			BenchmarkHashToGroup-8   	   32596	     35014 ns/op	     726 B/op	      16 allocs/op
-		BenchmarkHashToGroup-8   	   34110	     34453 ns/op	     726 B/op	      16 allocs/op
-
-
-	*/
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for range b.N {
-		_ = secp256k1.HashToGroup(benchmarkHashInput, benchmarkHashDST)
+		if _, err := secp256k1.HashToGroup(benchmarkHashInput, benchmarkHashDST); err != nil {
+			b.Fatal(err)
+		}
 	}
 }

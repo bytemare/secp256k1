@@ -15,6 +15,8 @@ import (
 	"hash"
 	"math"
 	"slices"
+
+	_ "crypto/sha256"
 )
 
 const (
@@ -24,14 +26,17 @@ const (
 	recommendedMinLength = 16
 )
 
-var errZeroLenDST = errors.New("zero-length DST")
+// ErrZeroLenDST indicates that a hash-to-curve domain separation tag is empty.
+var ErrZeroLenDST = errors.New("zero-length DST")
 
-func checkDST(dst []byte) {
+func checkDST(dst []byte) error {
 	if len(dst) < recommendedMinLength {
 		if len(dst) == minLength {
-			panic(errZeroLenDST)
+			return ErrZeroLenDST
 		}
 	} // We could panic here as well, but let's not enforce the recommended minimum length, yet.
+
+	return nil
 }
 
 func i2osp1(value uint) []byte {
@@ -51,8 +56,10 @@ func i2osp2(value uint) []byte {
 }
 
 // expandXMD implements expand_message_xmd as specified in RFC 9380 section 5.3.1.
-func expandXMD(input, dst []byte, length uint) []byte {
-	checkDST(dst)
+func expandXMD(input, dst []byte, length uint) ([]byte, error) {
+	if err := checkDST(dst); err != nil {
+		return nil, err
+	}
 
 	var zPad [64]byte // 64 is SHA256's block size
 
@@ -67,7 +74,7 @@ func expandXMD(input, dst []byte, length uint) []byte {
 	b1 := hashAll(h, b0, []byte{1}, dst)
 
 	// So we need to expand the hash output, and keep on hashing.
-	return xmd(h, b0, b1, dst, length)
+	return xmd(h, b0, b1, dst, length), nil
 }
 
 // xmd expands the message digest until it reaches the desirable length.
