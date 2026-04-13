@@ -49,10 +49,14 @@ func HashToGroup(input, dst []byte) *Element {
 	uniform := expandXMD(input, dst, expLength)
 	u0 := field.New().ReduceWideBytes([secLength]byte(uniform[:secLength]))
 	u1 := field.New().ReduceWideBytes([secLength]byte(uniform[secLength : 2*secLength]))
-	q0 := SSWU(u0)
-	q1 := SSWU(u1)
+	p0 := IsogenySecp256k13iso(SSWU(u0))
+	p1 := IsogenySecp256k13iso(SSWU(u1))
 
-	return IsogenySecp256k13iso(q0.addAffine3Iso2(q1))
+	// We apply the isogeny on the two mapped elements first, because the
+	// addition formula of the ISO curve is not complete and would silently produce
+	// undefined behavior when dividing by x2 - x1.
+
+	return p0.Add(p1)
 }
 
 // EncodeToGroup returns a non-uniform mapping of the arbitrary input to an Element in the Group.

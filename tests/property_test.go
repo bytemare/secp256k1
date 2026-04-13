@@ -18,11 +18,12 @@ import (
 )
 
 const (
-	groupLawIterations       = 64
-	roundTripIterations      = 128
-	scalarCompareIterations  = 256
-	scalarPowIterations      = 128
-	scalarRandomRangeSamples = 256
+	elementMultiplyIterations = 64
+	groupLawIterations        = 64
+	roundTripIterations       = 128
+	scalarCompareIterations   = 256
+	scalarPowIterations       = 128
+	scalarRandomRangeSamples  = 256
 )
 
 // newDeterministicTestRand returns a reproducible RNG for randomized-but-stable tests.
@@ -45,6 +46,27 @@ func deterministicReducedScalar(tb testing.TB, rng *rand.Rand) *secp256k1.Scalar
 	}
 
 	return s
+}
+
+// referenceMultiply provides a variable-time test oracle for scalar multiplication to compare other multiplication methods against.
+func referenceMultiply(point *secp256k1.Element, scalar *secp256k1.Scalar) *secp256k1.Element {
+	if scalar == nil {
+		return secp256k1.NewElement()
+	}
+
+	result := secp256k1.NewElement()
+	addend := point.Copy()
+	bits := scalar.Bits()
+
+	for i := 0; i < 256; i++ {
+		if bits[i] == 1 {
+			result.Add(addend)
+		}
+
+		addend.Double()
+	}
+
+	return result
 }
 
 // TestScalar_Pow_RandomizedAgainstBigInt cross-checks modular exponentiation against big.Int.
@@ -123,6 +145,26 @@ func TestEncoding_RoundTrip_Randomized(t *testing.T) {
 
 		if decodedUncompressed.Equal(e) != 1 {
 			t.Fatalf("element uncompressed case %d: %s", i, errExpectedEquality)
+		}
+	}
+}
+
+// TestElement_Multiply_RandomizedAgainstReference cross-checks point multiplication against a simple test oracle.
+func TestElement_Multiply_RandomizedAgainstReference(t *testing.T) {
+	rng := newDeterministicTestRand()
+	base := secp256k1.Base()
+
+	for i := range elementMultiplyIterations {
+		pointScalar := deterministicReducedScalar(t, rng)
+		multiplier := deterministicReducedScalar(t, rng)
+		point := referenceMultiply(base, pointScalar)
+
+		if got, want := base.Copy().Multiply(multiplier), referenceMultiply(base, multiplier); got.Equal(want) != 1 {
+			t.Fatalf("base case %d: unexpected multiplication result", i)
+		}
+
+		if got, want := point.Copy().Multiply(multiplier), referenceMultiply(point, multiplier); got.Equal(want) != 1 {
+			t.Fatalf("point case %d: unexpected multiplication result", i)
 		}
 	}
 }

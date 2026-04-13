@@ -23,7 +23,6 @@ func Example_scalarMult() {
 	// Get a scalar, e.g. a random one.
 	s := secp256k1.NewScalar().Random()
 
-	// Multiply. Boom.
 	g.Multiply(s)
 	// Output:
 }
