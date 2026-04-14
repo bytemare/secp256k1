@@ -135,7 +135,12 @@ func FuzzHashToScalar(f *testing.F) {
 			return
 		}
 
-		assertScalarRoundTrip(t, secp256k1.HashToScalar(input, dst))
+		scalar, err := secp256k1.HashToScalar(input, dst)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assertScalarRoundTrip(t, scalar)
 	})
 }
 
@@ -148,7 +153,12 @@ func FuzzHashToGroup(f *testing.F) {
 			return
 		}
 
-		assertElementRoundTrip(t, secp256k1.HashToGroup(input, dst))
+		element, err := secp256k1.HashToGroup(input, dst)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assertElementRoundTrip(t, element)
 	})
 }
 
@@ -161,6 +171,11 @@ func FuzzEncodeToGroup(f *testing.F) {
 			return
 		}
 
-		assertElementRoundTrip(t, secp256k1.EncodeToGroup(input, dst))
+		element, err := secp256k1.EncodeToGroup(input, dst)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assertElementRoundTrip(t, element)
 	})
 }

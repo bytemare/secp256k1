@@ -156,6 +156,22 @@ func TestElementSet(t *testing.T) {
 	testElementCopySet(t, base, other)
 }
 
+// TestElementSet_nil verifies Set panics on nil input without mutating the receiver.
+func TestElementSet_nil(t *testing.T) {
+	e := secp256k1.Base()
+	cpy := e.Copy()
+
+	if ok, err := expectPanic(secp256k1.ErrParamNilElement, func() {
+		e.Set(nil)
+	}); !ok {
+		t.Fatal(err)
+	}
+
+	if e.Equal(cpy) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
+}
+
 // TestElement_EncodedLength verifies identity, compressed, and uncompressed encoding lengths.
 func TestElement_EncodedLength(t *testing.T) {
 	id := secp256k1.NewElement().Identity().Encode()
@@ -200,7 +216,7 @@ func TestElement_EncodedLength(t *testing.T) {
 
 // TestElement_Decode_OutOfBounds verifies decoding rejects invalid point encodings and coordinates.
 func TestElement_Decode_OutOfBounds(t *testing.T) {
-	expected := errors.New("invalid point encoding")
+	expected := secp256k1.ErrParamInvalidPointEncoding
 
 	// Set x and y to zero
 	x := big.NewInt(0)
@@ -210,7 +226,7 @@ func TestElement_Decode_OutOfBounds(t *testing.T) {
 	encoded[0] = byte(2 | y.Bit(0)&1)
 	x.FillBytes(encoded[1:])
 
-	if err := secp256k1.NewElement().Decode(encoded[:]); err == nil || err.Error() != expected.Error() {
+	if err := secp256k1.NewElement().Decode(encoded[:]); !errors.Is(err, expected) {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 
@@ -226,7 +242,7 @@ func TestElement_Decode_OutOfBounds(t *testing.T) {
 	encoded[0] = byte(2 | y.Bit(0)&1)
 	x.FillBytes(encoded[1:])
 
-	if err := secp256k1.NewElement().Decode(encoded[:]); err == nil || err.Error() != expected.Error() {
+	if err := secp256k1.NewElement().Decode(encoded[:]); !errors.Is(err, expected) {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 }
@@ -235,6 +251,12 @@ func TestElement_Decode_OutOfBounds(t *testing.T) {
 func TestElement_Equal(t *testing.T) {
 	base := secp256k1.Base()
 	base2 := secp256k1.Base()
+
+	if ok, err := expectPanic(secp256k1.ErrParamNilElement, func() {
+		base.Equal(nil)
+	}); !ok {
+		t.Fatal(err)
+	}
 
 	if base.Equal(base2) != 1 {
 		t.Fatal(errExpectedEquality)
@@ -247,12 +269,18 @@ func TestElement_Equal(t *testing.T) {
 	}
 }
 
-// TestElement_Add verifies addition identities, inverses, and repeated-addition behavior.
+// TestElement_Add verifies addition identities, nil rejection, inverses, and repeated-addition behavior.
 func TestElement_Add(t *testing.T) {
-	// Verify whether add yields the same element when given nil
 	base := secp256k1.Base()
 	cpy := base.Copy()
-	if cpy.Add(nil).Equal(base) != 1 {
+
+	if ok, err := expectPanic(secp256k1.ErrParamNilElement, func() {
+		cpy.Add(nil)
+	}); !ok {
+		t.Fatal(err)
+	}
+
+	if cpy.Equal(base) != 1 {
 		t.Fatal(errExpectedEquality)
 	}
 
@@ -344,12 +372,18 @@ func TestElement_Double(t *testing.T) {
 	}
 }
 
-// TestElement_Substract verifies subtraction handles nil and undoes addition.
+// TestElement_Substract verifies subtraction rejects nil and undoes addition.
 func TestElement_Substract(t *testing.T) {
 	base := secp256k1.Base()
+	cpy := base.Copy()
 
-	// Verify whether subtracting yields the same element when given nil.
-	if base.Subtract(nil).Equal(base) != 1 {
+	if ok, err := expectPanic(secp256k1.ErrParamNilElement, func() {
+		base.Subtract(nil)
+	}); !ok {
+		t.Fatal(err)
+	}
+
+	if base.Equal(cpy) != 1 {
 		t.Fatal(errExpectedEquality)
 	}
 
@@ -360,7 +394,7 @@ func TestElement_Substract(t *testing.T) {
 	}
 }
 
-// TestElement_Multiply verifies scalar multiplication identities and basic consistency rules.
+// TestElement_Multiply verifies scalar multiplication identities, nil rejection, and basic consistency rules.
 func TestElement_Multiply(t *testing.T) {
 	scalar := secp256k1.NewScalar()
 
@@ -392,9 +426,16 @@ func TestElement_Multiply(t *testing.T) {
 		t.Fatal(errExpectedIdentity)
 	}
 
-	// base * nil = id
-	if !secp256k1.Base().Multiply(nil).IsIdentity() {
-		t.Fatal(errExpectedIdentity)
+	receiver := secp256k1.Base()
+	receiverCopy := receiver.Copy()
+	if ok, err := expectPanic(secp256k1.ErrParamNilScalar, func() {
+		receiver.Multiply(nil)
+	}); !ok {
+		t.Fatal(err)
+	}
+
+	if receiver.Equal(receiverCopy) != 1 {
+		t.Fatal(errExpectedEquality)
 	}
 }
 
@@ -423,13 +464,13 @@ func TestElement_Identity(t *testing.T) {
 	var invalidEncoding [32]byte
 	invalidEncoding[0] = 0x02
 
-	if err := e.Decode(invalidEncoding[:]); err == nil || err.Error() != "invalid point encoding" {
+	if err := e.Decode(invalidEncoding[:]); !errors.Is(err, secp256k1.ErrParamInvalidPointEncoding) {
 		t.Fatalf("expected specific error on decoding identity, got %q", err)
 	}
 
 	invalidEncoding[0] = 0x03
 
-	if err := e.Decode(invalidEncoding[:]); err == nil || err.Error() != "invalid point encoding" {
+	if err := e.Decode(invalidEncoding[:]); !errors.Is(err, secp256k1.ErrParamInvalidPointEncoding) {
 		t.Fatalf("expected specific error on decoding identity, got %q", err)
 	}
 
@@ -445,10 +486,6 @@ func TestElement_Identity(t *testing.T) {
 	sub2 := secp256k1.Base().Subtract(secp256k1.Base())
 	if sub1.Equal(sub2) != 1 {
 		t.Fatal(errExpectedEquality)
-	}
-
-	if id.Equal(base.Multiply(nil)) != 1 {
-		t.Fatal(errExpectedIdentity)
 	}
 
 	if id.Equal(base.Multiply(secp256k1.NewScalar().Zero())) != 1 {

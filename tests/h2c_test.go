@@ -9,8 +9,10 @@
 package secp256k1_test
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -73,7 +75,10 @@ func (v *h2cVector) run(t *testing.T) {
 
 	switch v.Ciphersuite[len(v.Ciphersuite)-3:] {
 	case "RO_":
-		p := secp256k1.HashToGroup([]byte(v.Msg), []byte(v.Dst))
+		p, err := secp256k1.HashToGroup([]byte(v.Msg), []byte(v.Dst))
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		if p.Equal(expected) != 1 {
 			t.Log(v.P)
@@ -83,7 +88,10 @@ func (v *h2cVector) run(t *testing.T) {
 			t.Fatalf("Unexpected HashToGroup output.\n\twant: %q\n\tgot : %q", expected.Hex(), p.Hex())
 		}
 	case "NU_":
-		p := secp256k1.EncodeToGroup([]byte(v.Msg), []byte(v.Dst))
+		p, err := secp256k1.EncodeToGroup([]byte(v.Msg), []byte(v.Dst))
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		if p.Equal(expected) != 1 {
 			t.Fatalf("Unexpected EncodeToGroup output.\n\twant: %q\n\tgot : %q", expected.Hex(), p.Hex())
@@ -128,11 +136,57 @@ func TestHashToGroup_Regression(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := secp256k1.HashToGroup([]byte(test.msg), []byte(dst))
+			got, err := secp256k1.HashToGroup([]byte(test.msg), []byte(dst))
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			if got.Hex() != test.want {
 				t.Fatalf("unexpected HashToGroup output.\n\twant: %q\n\tgot : %q", test.want, got.Hex())
 			}
 		})
+	}
+}
+
+// TestHashToGroup_EmptyDST verifies the checked hash-to-curve APIs reject an empty DST.
+func TestHashToGroup_EmptyDST(t *testing.T) {
+	input := []byte("input data")
+
+	for _, dst := range [][]byte{nil, {}} {
+		if _, err := secp256k1.HashToGroup(input, dst); !errors.Is(err, secp256k1.ErrZeroLenDST) {
+			t.Fatalf("expected %v from HashToGroup, got %v", secp256k1.ErrZeroLenDST, err)
+		}
+
+		if _, err := secp256k1.EncodeToGroup(input, dst); !errors.Is(err, secp256k1.ErrZeroLenDST) {
+			t.Fatalf("expected %v from EncodeToGroup, got %v", secp256k1.ErrZeroLenDST, err)
+		}
+	}
+}
+
+// TestHashToGroup_OversizeDST verifies oversize DST handling remains stable for group mappings.
+func TestHashToGroup_OversizeDST(t *testing.T) {
+	input := []byte("oversize DST regression")
+	dst := bytes.Repeat([]byte("D"), 300)
+
+	groupElement, err := secp256k1.HashToGroup(input, dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	encodedElement, err := secp256k1.EncodeToGroup(input, dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const wantHashToGroup = "02db06765aeabc0b2307d0b03526039e53b085028b8e331f080e9d15d891e6cf57"
+	const wantEncodeToGroup = "03297deedc8b7db81b77ff4f34496b2a948de87ec18149f23560e960d04b619b14"
+
+	if groupElement.Hex() != wantHashToGroup {
+		t.Fatalf("unexpected HashToGroup output.\n\twant: %q\n\tgot : %q", wantHashToGroup, groupElement.Hex())
+	}
+
+	if encodedElement.Hex() != wantEncodeToGroup {
+		t.Fatalf("unexpected EncodeToGroup output.\n\twant: %q\n\tgot : %q", wantEncodeToGroup, encodedElement.Hex())
 	}
 }
 

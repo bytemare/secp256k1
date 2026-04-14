@@ -34,19 +34,27 @@ func Base() *Element {
 }
 
 // HashToScalar returns a safe mapping of the arbitrary input to a Scalar.
-// The DST must not be empty or nil, and is recommended to be longer than 16 bytes.
-func HashToScalar(input, dst []byte) *Scalar {
-	uniform := expandXMD(input, dst, uint(secLength))
+// It returns ErrZeroLenDST if dst is empty. A DST longer than 16 bytes is recommended.
+func HashToScalar(input, dst []byte) (*Scalar, error) {
+	uniform, err := expandXMD(input, dst, uint(secLength))
+	if err != nil {
+		return nil, err
+	}
+
 	return &Scalar{
 		S: *scalar.ReduceWideBytes(&scalar.MontgomeryDomainFieldElement{}, [secLength]byte(uniform)),
-	}
+	}, nil
 }
 
 // HashToGroup returns a safe mapping of the arbitrary input to an Element in the Group.
-// The DST must not be empty or nil, and is recommended to be longer than 16 bytes.
-func HashToGroup(input, dst []byte) *Element {
+// It returns ErrZeroLenDST if dst is empty. A DST longer than 16 bytes is recommended.
+func HashToGroup(input, dst []byte) (*Element, error) {
 	expLength := 2 * 1 * uint(secLength) // elements * ext * security length
-	uniform := expandXMD(input, dst, expLength)
+	uniform, err := expandXMD(input, dst, expLength)
+	if err != nil {
+		return nil, err
+	}
+
 	u0 := field.New().ReduceWideBytes([secLength]byte(uniform[:secLength]))
 	u1 := field.New().ReduceWideBytes([secLength]byte(uniform[secLength : 2*secLength]))
 	p0 := IsogenySecp256k13iso(SSWU(u0))
@@ -56,17 +64,21 @@ func HashToGroup(input, dst []byte) *Element {
 	// addition formula of the ISO curve is not complete and would silently produce
 	// undefined behavior when dividing by x2 - x1.
 
-	return p0.Add(p1)
+	return p0.Add(p1), nil
 }
 
 // EncodeToGroup returns a non-uniform mapping of the arbitrary input to an Element in the Group.
-// The DST must not be empty or nil, and is recommended to be longer than 16 bytes.
-func EncodeToGroup(input, dst []byte) *Element {
+// It returns ErrZeroLenDST if dst is empty. A DST longer than 16 bytes is recommended.
+func EncodeToGroup(input, dst []byte) (*Element, error) {
 	expLength := 1 * 1 * uint(secLength) // elements * ext * security length
-	uniform := expandXMD(input, dst, expLength)
+	uniform, err := expandXMD(input, dst, expLength)
+	if err != nil {
+		return nil, err
+	}
+
 	u0 := field.New().ReduceWideBytes([secLength]byte(uniform[:secLength]))
 
-	return IsogenySecp256k13iso(SSWU(u0))
+	return IsogenySecp256k13iso(SSWU(u0)), nil
 }
 
 // Ciphersuite returns the hash-to-curve ciphersuite identifier.

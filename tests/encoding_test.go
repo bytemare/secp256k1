@@ -141,33 +141,33 @@ func TestElement_Decode_fails(t *testing.T) {
 	element := secp256k1.Base().Multiply(scalar)
 	encoded := element.Encode()
 	res := secp256k1.NewElement()
-	expected := errors.New("invalid point encoding")
+	expected := secp256k1.ErrParamInvalidPointEncoding
 
 	// Identity element encoding length, but not 0.
-	if err := res.Decode([]byte{2}); err == nil || err.Error() != expected.Error() {
+	if err := res.Decode([]byte{2}); !errors.Is(err, expected) {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 
 	// Compressed, but wrong length
-	if err := res.DecodeCompressed(encoded[:31]); err == nil || err.Error() != expected.Error() {
+	if err := res.DecodeCompressed(encoded[:31]); !errors.Is(err, expected) {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 
 	// Compressed, but wrong prefix
 	encoded[0] = 0x05
-	if err := res.DecodeCompressed(encoded); err == nil || err.Error() != expected.Error() {
+	if err := res.DecodeCompressed(encoded); !errors.Is(err, expected) {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 
 	// Uncompressed, but wrong length
 	encoded = element.EncodeUncompressed()
-	if err := res.DecodeUncompressed(encoded[:64]); err == nil || err.Error() != expected.Error() {
+	if err := res.DecodeUncompressed(encoded[:64]); !errors.Is(err, expected) {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 
 	// Uncompressed, but wrong prefix
 	encoded[0] = 0x05
-	if err := res.DecodeUncompressed(encoded); err == nil || err.Error() != expected.Error() {
+	if err := res.DecodeUncompressed(encoded); !errors.Is(err, expected) {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 
@@ -176,14 +176,12 @@ func TestElement_Decode_fails(t *testing.T) {
 	notOk, _ := hex.DecodeString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 
 	// x not ok
-	if err := secp256k1.NewElement().DecodeCoordinates([32]byte(notOk), [32]byte(ok)); err == nil ||
-		err.Error() != expected.Error() {
+	if err := secp256k1.NewElement().DecodeCoordinates([32]byte(notOk), [32]byte(ok)); !errors.Is(err, expected) {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 
 	// y not ok
-	if err := secp256k1.NewElement().DecodeCoordinates([32]byte(ok), [32]byte(notOk)); err == nil ||
-		err.Error() != expected.Error() {
+	if err := secp256k1.NewElement().DecodeCoordinates([32]byte(ok), [32]byte(notOk)); !errors.Is(err, expected) {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 
@@ -192,8 +190,7 @@ func TestElement_Decode_fails(t *testing.T) {
 	x, _ := hex.DecodeString("2c04458a01fd91dfb94e8c6f17803b206b8f910073120a2e0b65a5090ce2f316")
 	y, _ := hex.DecodeString("2d90e1db58b9ad2e69117cbb8fbfd2f48ea1082d6f596656d1f30ddeccf4ffc0")
 
-	if err := secp256k1.NewElement().DecodeCoordinates([32]byte(x), [32]byte(y)); err == nil ||
-		err.Error() != expected.Error() {
+	if err := secp256k1.NewElement().DecodeCoordinates([32]byte(x), [32]byte(y)); !errors.Is(err, expected) {
 		t.Errorf("expected error %q, got %v", expected, err)
 	}
 }

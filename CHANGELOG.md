@@ -15,3 +15,7 @@ This project follows [Semantic Versioning](https://semver.org/). Contributors sh
 - Fixed Multiply with better constant-time conditional swaps.
 - Fixed HashToGroup with pull SSWU output from the ISO group before adding to avoid super-rare edge case of x2 == x1.
 - Added some more tests.
+- Changed `HashToScalar`, `HashToGroup`, and `EncodeToGroup` to return errors for empty DST inputs instead of panicking.
+- Standardized public nil-input handling for element and scalar mutators/comparators to panic consistently.
+- Exported `ErrParamNilElement` for element nil-input contract checks.
+- Exported `ErrParamInvalidPointEncoding` for element decode contract checks.

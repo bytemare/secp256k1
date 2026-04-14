@@ -76,11 +76,6 @@ func testScalarCopySet(t *testing.T, scalar, other *secp256k1.Scalar) {
 	if scalar.Equal(other) == 1 {
 		t.Fatalf("Unexpected equality")
 	}
-
-	// Verify setting to nil sets to 0
-	if scalar.Set(nil).Equal(secp256k1.NewScalar()) != 1 {
-		t.Error(errExpectedEquality)
-	}
 }
 
 // TestScalar_Copy verifies Copy returns an equivalent scalar with independent state.
@@ -95,6 +90,22 @@ func TestScalar_Set(t *testing.T) {
 	random := secp256k1.NewScalar().Random()
 	other := secp256k1.NewScalar().Set(random)
 	testScalarCopySet(t, random, other)
+}
+
+// TestScalar_Set_nil verifies Set panics on nil input without mutating the receiver.
+func TestScalar_Set_nil(t *testing.T) {
+	s := secp256k1.NewScalar().Random()
+	cpy := s.Copy()
+
+	if ok, err := expectPanic(secp256k1.ErrParamNilScalar, func() {
+		s.Set(nil)
+	}); !ok {
+		t.Fatal(err)
+	}
+
+	if s.Equal(cpy) != 1 {
+		t.Fatal(errExpectedEquality)
+	}
 }
 
 // TestScalar_NonComparable verifies scalars cannot be meaningfully compared as Go values.
@@ -526,8 +537,10 @@ func TestScalar_Equal(t *testing.T) {
 	zero := secp256k1.NewScalar().Zero()
 	zero2 := secp256k1.NewScalar().Zero()
 
-	if zero.Equal(nil) != 0 {
-		t.Error("expect difference")
+	if ok, err := expectPanic(secp256k1.ErrParamNilScalar, func() {
+		zero.Equal(nil)
+	}); !ok {
+		t.Fatal(err)
 	}
 
 	if zero.Equal(zero2) != 1 {
@@ -554,6 +567,12 @@ func TestScalar_LessOrEqual(t *testing.T) {
 	order := scalarOrderInt()
 	nMinusTwo := mustDecodeScalarBytes(t, scalarBytes(new(big.Int).Sub(order, big.NewInt(2))))
 	nMinusOne := mustDecodeScalarBytes(t, scalarBytes(new(big.Int).Sub(order, big.NewInt(1))))
+
+	if ok, err := expectPanic(secp256k1.ErrParamNilScalar, func() {
+		zero.LessOrEqual(nil)
+	}); !ok {
+		t.Fatal(err)
+	}
 
 	if zero.LessOrEqual(one) != 1 {
 		t.Fatal("expected 0 <= 1")
@@ -596,29 +615,51 @@ func TestScalar_LessOrEqual(t *testing.T) {
 	}
 }
 
-// TestScalar_Add verifies adding nil leaves the scalar unchanged.
+// TestScalar_Add verifies Add panics on nil input without mutating the receiver.
 func TestScalar_Add(t *testing.T) {
 	r := secp256k1.NewScalar().Random()
 	cpy := r.Copy()
-	if r.Add(nil).Equal(cpy) != 1 {
+
+	if ok, err := expectPanic(secp256k1.ErrParamNilScalar, func() {
+		r.Add(nil)
+	}); !ok {
+		t.Fatal(err)
+	}
+
+	if r.Equal(cpy) != 1 {
 		t.Fatal(errExpectedEquality)
 	}
 }
 
-// TestScalar_Subtract verifies subtracting nil leaves the scalar unchanged.
+// TestScalar_Subtract verifies Subtract panics on nil input without mutating the receiver.
 func TestScalar_Subtract(t *testing.T) {
 	r := secp256k1.NewScalar().Random()
 	cpy := r.Copy()
-	if r.Subtract(nil).Equal(cpy) != 1 {
+
+	if ok, err := expectPanic(secp256k1.ErrParamNilScalar, func() {
+		r.Subtract(nil)
+	}); !ok {
+		t.Fatal(err)
+	}
+
+	if r.Equal(cpy) != 1 {
 		t.Fatal(errExpectedEquality)
 	}
 }
 
-// TestScalar_Multiply verifies multiplying by nil yields zero.
+// TestScalar_Multiply verifies Multiply panics on nil input without mutating the receiver.
 func TestScalar_Multiply(t *testing.T) {
 	s := secp256k1.NewScalar().Random()
-	if !s.Multiply(nil).IsZero() {
-		t.Fatal("expected zero")
+	cpy := s.Copy()
+
+	if ok, err := expectPanic(secp256k1.ErrParamNilScalar, func() {
+		s.Multiply(nil)
+	}); !ok {
+		t.Fatal(err)
+	}
+
+	if s.Equal(cpy) != 1 {
+		t.Fatal(errExpectedEquality)
 	}
 }
 
@@ -832,28 +873,40 @@ func TestScalar_HashToScalar(t *testing.T) {
 		t.Error(err)
 	}
 
-	s := secp256k1.HashToScalar(data, dst)
+	s, err := secp256k1.HashToScalar(data, dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if s.Equal(ref) != 1 {
 		t.Error(errExpectedEquality)
 	}
 }
 
-// TestScalar_HashToScalar_NoDST verifies HashToScalar panics on a missing DST.
-func TestScalar_HashToScalar_NoDST(t *testing.T) {
+// TestScalar_HashToScalar_EmptyDST verifies HashToScalar rejects an empty DST.
+func TestScalar_HashToScalar_EmptyDST(t *testing.T) {
 	data := []byte("input data")
 
-	// Nil DST
-	if panics, err := expectPanic(errors.New("zero-length DST"), func() {
-		_ = secp256k1.HashToScalar(data, nil)
-	}); !panics {
-		t.Error(fmt.Errorf("%s: %w)", errNoPanic, err))
+	for _, dst := range [][]byte{nil, {}} {
+		if _, err := secp256k1.HashToScalar(data, dst); !errors.Is(err, secp256k1.ErrZeroLenDST) {
+			t.Fatalf("expected %v, got %v", secp256k1.ErrZeroLenDST, err)
+		}
+	}
+}
+
+// TestScalar_HashToScalar_OversizeDST verifies oversize DST handling remains stable.
+func TestScalar_HashToScalar_OversizeDST(t *testing.T) {
+	input := []byte("oversize DST regression")
+	dst := bytes.Repeat([]byte("D"), 300)
+
+	s, err := secp256k1.HashToScalar(input, dst)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	// Zero length DST
-	if panics, err := expectPanic(errors.New("zero-length DST"), func() {
-		_ = secp256k1.HashToScalar(data, []byte{})
-	}); !panics {
-		t.Error(fmt.Errorf("%s: %w)", errNoPanic, err))
+	const want = "f30c89b2978d7c9e88a43293b3cc6683e740201fbea3cbf0ef1f0a09042bc2fe"
+	if s.Hex() != want {
+		t.Fatalf("unexpected HashToScalar output.\n\twant: %q\n\tgot : %q", want, s.Hex())
 	}
 }
 
