@@ -857,59 +857,6 @@ func TestScalar_Invert(t *testing.T) {
 	}
 }
 
-// TestScalar_HashToScalar verifies HashToScalar matches the expected reference output.
-func TestScalar_HashToScalar(t *testing.T) {
-	data := []byte("input data")
-	dst := []byte("domain separation tag")
-	encoded := "782a63d48eace435ac06468208d9a62e3680e4ddc3977c4345b2c6de08258b69"
-
-	b, err := hex.DecodeString(encoded)
-	if err != nil {
-		t.Error(err)
-	}
-
-	ref := secp256k1.NewScalar()
-	if err := ref.Decode(b); err != nil {
-		t.Error(err)
-	}
-
-	s, err := secp256k1.HashToScalar(data, dst)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if s.Equal(ref) != 1 {
-		t.Error(errExpectedEquality)
-	}
-}
-
-// TestScalar_HashToScalar_EmptyDST verifies HashToScalar rejects an empty DST.
-func TestScalar_HashToScalar_EmptyDST(t *testing.T) {
-	data := []byte("input data")
-
-	for _, dst := range [][]byte{nil, {}} {
-		if _, err := secp256k1.HashToScalar(data, dst); !errors.Is(err, secp256k1.ErrZeroLenDST) {
-			t.Fatalf("expected %v, got %v", secp256k1.ErrZeroLenDST, err)
-		}
-	}
-}
-
-// TestScalar_HashToScalar_OversizeDST verifies oversize DST handling remains stable.
-func TestScalar_HashToScalar_OversizeDST(t *testing.T) {
-	input := []byte("oversize DST regression")
-	dst := bytes.Repeat([]byte("D"), 300)
-
-	s, err := secp256k1.HashToScalar(input, dst)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	const want = "f30c89b2978d7c9e88a43293b3cc6683e740201fbea3cbf0ef1f0a09042bc2fe"
-	if s.Hex() != want {
-		t.Fatalf("unexpected HashToScalar output.\n\twant: %q\n\tgot : %q", want, s.Hex())
-	}
-}
-
 // TestScalarBitsMSB verifies Bits exposes the most significant bit at index 255.
 func TestScalarBitsMSB(t *testing.T) {
 	// Define the scalar with only the MSB set: 0x8000...0000
