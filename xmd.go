@@ -9,126 +9,98 @@
 package secp256k1
 
 import (
-	"crypto"
+	"crypto/sha256"
 	"encoding/binary"
-	"errors"
-	"hash"
 	"math"
-	"slices"
-
-	_ "crypto/sha256"
 )
 
 const (
-	dstMaxLength         = 255
-	dstLongPrefix        = "H2C-OVERSIZE-DST-"
-	minLength            = 0
-	recommendedMinLength = 16
+	minLength      = 0
+	dstMaxLength   = math.MaxUint8
+	xmdMaxDSTPrime = dstMaxLength + 1
+	dstLongPrefix  = "H2C-OVERSIZE-DST-"
 )
 
-// ErrZeroLenDST indicates that a hash-to-curve domain separation tag is empty.
-var ErrZeroLenDST = errors.New("zero-length DST")
+var dstLongPrefixBytes = []byte(dstLongPrefix) //nolint:gochecknoglobals // shared XMD constant
 
 func checkDST(dst []byte) error {
-	if len(dst) < recommendedMinLength {
-		if len(dst) == minLength {
-			return ErrZeroLenDST
-		}
-	} // We could panic here as well, but let's not enforce the recommended minimum length, yet.
+	if len(dst) == minLength {
+		return ErrZeroLengthDST
+	}
 
 	return nil
 }
 
-func i2osp1(value uint) []byte {
-	var out [2]byte
-
-	binary.BigEndian.PutUint16(out[:], uint16(value))
-
-	return out[1:2]
-}
-
-func i2osp2(value uint) []byte {
-	var out [2]byte
-
-	binary.BigEndian.PutUint16(out[:], uint16(value))
-
-	return out[:]
-}
-
-// expandXMD implements expand_message_xmd as specified in RFC 9380 section 5.3.1.
-func expandXMD(input, dst []byte, length uint) ([]byte, error) {
+// expandXMDTo expands the input and dst using the given fixed length hash function and writes to out.
+// It implements expand_message_xmd as specified in RFC 9380 section 5.3.1. and is optimized for SHA-256.
+// dst MUST be non-nil, longer than 0 and lower than 256. It's recommended that DST is at least 16 bytes long.
+func expandXMDTo(out, input, dst []byte) error {
 	if err := checkDST(dst); err != nil {
-		return nil, err
+		return err
 	}
 
-	var zPad [64]byte // 64 is SHA256's block size
-
-	h := crypto.SHA256.New()
-	dst = vetDSTXMD(h, dst)
-	lib := i2osp2(length)
-
-	// Hash to b0
-	b0 := hashAll(h, zPad[:], input, lib, []byte{0}, dst)
-
-	// Hash to b1
-	b1 := hashAll(h, b0, []byte{1}, dst)
-
-	// So we need to expand the hash output, and keep on hashing.
-	return xmd(h, b0, b1, dst, length), nil
-}
-
-// xmd expands the message digest until it reaches the desirable length.
-func xmd(h hash.Hash, b0, b1, dstPrime []byte, length uint) []byte {
-	uniformBytes := make([]byte, 0, length)
-	uniformBytes = append(uniformBytes, b1...)
-	bi := make([]byte, len(b1))
-	copy(bi, b1)
-
-	// In a generic setup, we would check if ell > 255 or length > math.MaxUint16 and panic in those case, but expandXMD
-	// for SECP256k1 is always called with 48 or 96 as expected output length, so we're fine.
-	// We would also return b1[0:length] if ell < 2, but since we always call with 48 or 96 as expected output length,
-	// so ell is always 2 or 3.
-	ell := uint(math.Ceil(float64(length) / float64(crypto.SHA256.Size())))
-
-	for i := uint(2); i <= ell; i++ {
-		xor := xorSlices(bi, b0)
-		bi = hashAll(h, xor, []byte{byte(i)}, dstPrime)
-		uniformBytes = append(uniformBytes, bi...)
-	}
-
-	return uniformBytes[0:length]
-}
-
-// xorSlices xors the two byte slices byte by byte into bi, and returns bi.
-// Both slices must be of same length.
-func xorSlices(bi, b0 []byte) []byte {
-	for i := range bi {
-		bi[i] ^= b0[i]
-	}
-
-	return bi
-}
-
-// vetDSTXMD computes a shorter tag for dst if the tag length exceeds 255 bytes. Since we use SHA256, the hash output is
-// 32 bytes and so does not exceed the maximum output length of 255. In any case, dst is returned length suffixed.
-func vetDSTXMD(h hash.Hash, dst []byte) []byte {
-	// If the tag length exceeds 255 bytes, compute a shorter tag by hashing it
+	h := sha256.New()
+	var shortenedDST [sha256.Size]byte
 	if len(dst) > dstMaxLength {
-		dst = hashAll(h, []byte(dstLongPrefix), dst)
+		h.Reset()
+		h.Write(dstLongPrefixBytes)
+		h.Write(dst)
+		h.Sum(shortenedDST[:0])
+		dst = shortenedDST[:]
 	}
 
-	// DST prime = length suffixed DST
-	dst = slices.Grow(dst, 1)
+	var dstPrimeArray [xmdMaxDSTPrime]byte
+	dstPrimeLen := copy(dstPrimeArray[:], dst)
+	dstPrimeArray[dstPrimeLen] = byte(len(dst))
+	dstPrime := dstPrimeArray[:dstPrimeLen+1]
 
-	return append(dst, i2osp1(uint(len(dst)))[0])
+	// ell indicates how many hash chunks we need.
+	length := len(out)
+
+	ell := (length + sha256.Size - 1) / sha256.Size // equivalent to math.Ceil(float64(length) / float64(sha256Size))
+	if ell > math.MaxUint8 || length > math.MaxUint16 {
+		return nil
+	}
+
+	var lib [2]byte
+	var zeroByte [1]byte
+	var zPad [sha256.BlockSize]byte
+	var b0 [sha256.Size]byte
+	var bi [sha256.Size]byte
+	var biInput [sha256.Size + 1 + xmdMaxDSTPrime]byte // buffer for hashing.
+
+	binary.BigEndian.PutUint16(lib[:], uint16(length))
+
+	h.Reset()
+	h.Write(zPad[:])
+	h.Write(input)
+	h.Write(lib[:])
+	h.Write(zeroByte[:])
+	h.Write(dstPrime)
+	h.Sum(b0[:0])
+
+	biInputLen := sha256.Size + 1 + len(dstPrime)
+	copy(biInput[sha256.Size+1:], dstPrime)
+	copy(biInput[:sha256.Size], b0[:])
+	biInput[sha256.Size] = 1
+	hashToBuffer(bi[:], biInput[:biInputLen])
+	offset := copy(out, bi[:sha256.Size])
+
+	// xmd: expand the message digest until it reaches the desirable length.
+	for i := 2; i <= ell; i++ {
+		for j := 0; j < sha256.Size; j++ {
+			biInput[j] = bi[j] ^ b0[j]
+		}
+
+		biInput[sha256.Size] = byte(i)
+		hashToBuffer(bi[:], biInput[:biInputLen])
+		offset += copy(out[offset:], bi[:sha256.Size])
+	}
+
+	return nil
 }
 
-func hashAll(h hash.Hash, input ...[]byte) []byte {
-	h.Reset()
-
-	for _, i := range input {
-		_, _ = h.Write(i)
-	}
-
-	return h.Sum(nil)
+func hashToBuffer(out, input []byte) {
+	sum := sha256.Sum256(input)
+	copy(out, sum[:])
 }

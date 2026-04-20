@@ -153,12 +153,12 @@ func TestHashToGroup_EmptyDST(t *testing.T) {
 	input := []byte("input data")
 
 	for _, dst := range [][]byte{nil, {}} {
-		if _, err := secp256k1.HashToGroup(input, dst); !errors.Is(err, secp256k1.ErrZeroLenDST) {
-			t.Fatalf("expected %v from HashToGroup, got %v", secp256k1.ErrZeroLenDST, err)
+		if _, err := secp256k1.HashToGroup(input, dst); !errors.Is(err, secp256k1.ErrZeroLengthDST) {
+			t.Fatalf("expected %v from HashToGroup, got %v", secp256k1.ErrZeroLengthDST, err)
 		}
 
-		if _, err := secp256k1.EncodeToGroup(input, dst); !errors.Is(err, secp256k1.ErrZeroLenDST) {
-			t.Fatalf("expected %v from EncodeToGroup, got %v", secp256k1.ErrZeroLenDST, err)
+		if _, err := secp256k1.EncodeToGroup(input, dst); !errors.Is(err, secp256k1.ErrZeroLengthDST) {
+			t.Fatalf("expected %v from EncodeToGroup, got %v", secp256k1.ErrZeroLengthDST, err)
 		}
 	}
 }
