@@ -94,7 +94,7 @@ func expandXMDTo(out, input, dst []byte) error {
 
 	// xmd: expand the message digest until it reaches the desirable length.
 	for i := 2; i <= ell; i++ {
-		for j := 0; j < sha256.Size; j++ {
+		for j := range sha256.Size {
 			biInput[j] = bi[j] ^ b0[j]
 		}
 
