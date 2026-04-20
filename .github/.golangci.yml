@@ -133,6 +133,8 @@ linters:
         - 'github.com/bytemare/secp256k1.Element'
     funlen:
       lines: 120
+      ignore-comments: true
+      statements: 45
     gocritic:
       enable-all: true
       disabled-checks:

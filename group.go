@@ -44,7 +44,7 @@ func HashToScalar(input, dst []byte) (*Scalar, error) {
 	}
 
 	return &Scalar{
-		S: *scalar.ReduceWideBytes(&scalar.MontgomeryDomainFieldElement{}, [secLength]byte(uniform)),
+		S: *scalar.ReduceWideBytes(&scalar.MontgomeryDomainFieldElement{}, uniform),
 	}, nil
 }
 
@@ -80,7 +80,7 @@ func EncodeToGroup(input, dst []byte) (*Element, error) {
 		return nil, err
 	}
 
-	u0 := field.New().ReduceWideBytes([secLength]byte(uniform[:secLength]))
+	u0 := field.New().ReduceWideBytes(uniform)
 
 	return IsogenySecp256k13iso(SSWU(u0)), nil
 }
