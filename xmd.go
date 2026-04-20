@@ -63,11 +63,6 @@ func expandXMDTo(out, input, dst []byte) error {
 	// ell indicates how many hash chunks we need.
 	length := len(out)
 
-	ell := (length + sha256.Size - 1) / sha256.Size // equivalent to math.Ceil(float64(length) / float64(sha256Size))
-	if ell > math.MaxUint8 || length > math.MaxUint16 {
-		return nil
-	}
-
 	var lib [2]byte
 	var zeroByte [1]byte
 	var zPad [sha256.BlockSize]byte
@@ -93,6 +88,7 @@ func expandXMDTo(out, input, dst []byte) error {
 	offset := copy(out, bi[:sha256.Size])
 
 	// xmd: expand the message digest until it reaches the desirable length.
+	ell := (length + sha256.Size - 1) / sha256.Size // equivalent to math.Ceil(float64(length) / float64(sha256Size))
 	for i := 2; i <= ell; i++ {
 		for j := range sha256.Size {
 			biInput[j] = bi[j] ^ b0[j]
