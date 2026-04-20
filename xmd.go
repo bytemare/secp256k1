@@ -11,6 +11,7 @@ package secp256k1
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"math"
 )
 
@@ -21,7 +22,12 @@ const (
 	dstLongPrefix  = "H2C-OVERSIZE-DST-"
 )
 
-var dstLongPrefixBytes = []byte(dstLongPrefix) //nolint:gochecknoglobals // shared XMD constant
+var (
+	// ErrZeroLengthDST is returned when a group could not be decoded.
+	ErrZeroLengthDST = errors.New("the provided domain separation tag is empty")
+
+	dstLongPrefixBytes = []byte(dstLongPrefix) //nolint:gochecknoglobals // shared XMD constant
+)
 
 func checkDST(dst []byte) error {
 	if len(dst) == minLength {

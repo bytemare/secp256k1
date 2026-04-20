@@ -36,7 +36,9 @@ func Base() *Element {
 // HashToScalar returns a safe mapping of the arbitrary input to a Scalar.
 // It returns ErrZeroLenDST if dst is empty. A DST longer than 16 bytes is recommended.
 func HashToScalar(input, dst []byte) (*Scalar, error) {
-	uniform, err := expandXMD(input, dst, uint(secLength))
+	var uniform [secLength]byte
+
+	err := expandXMDTo(uniform[:], input, dst)
 	if err != nil {
 		return nil, err
 	}
@@ -49,8 +51,9 @@ func HashToScalar(input, dst []byte) (*Scalar, error) {
 // HashToGroup returns a safe mapping of the arbitrary input to an Element in the Group.
 // It returns ErrZeroLenDST if dst is empty. A DST longer than 16 bytes is recommended.
 func HashToGroup(input, dst []byte) (*Element, error) {
-	expLength := 2 * 1 * uint(secLength) // elements * ext * security length
-	uniform, err := expandXMD(input, dst, expLength)
+	var uniform [2 * secLength]byte // elements * ext * security length
+
+	err := expandXMDTo(uniform[:], input, dst)
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +73,9 @@ func HashToGroup(input, dst []byte) (*Element, error) {
 // EncodeToGroup returns a non-uniform mapping of the arbitrary input to an Element in the Group.
 // It returns ErrZeroLenDST if dst is empty. A DST longer than 16 bytes is recommended.
 func EncodeToGroup(input, dst []byte) (*Element, error) {
-	expLength := 1 * 1 * uint(secLength) // elements * ext * security length
-	uniform, err := expandXMD(input, dst, expLength)
+	var uniform [secLength]byte // elements * ext * security length
+
+	err := expandXMDTo(uniform[:], input, dst)
 	if err != nil {
 		return nil, err
 	}
